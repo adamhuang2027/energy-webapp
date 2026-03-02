@@ -39,6 +39,17 @@ function formatTimeCT(iso) {
   }).format(new Date(iso));
 }
 
+function isoToLocalInputValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputValueToIso(val) {
+  return val ? new Date(val).toISOString() : null;
+}
+
 function getCurrentSlotCT() {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: CT_TZ,
@@ -104,6 +115,8 @@ async function renderTasks() {
         </select>
         <input id="wstart-${t.id}" type="number" min="0" max="23" value="${t.window_start_hour ?? ''}" placeholder="win start" style="width:90px" />
         <input id="wend-${t.id}" type="number" min="1" max="24" value="${t.window_end_hour ?? ''}" placeholder="win end" style="width:90px" />
+        <input id="fstart-${t.id}" type="datetime-local" value="${isoToLocalInputValue(t.fixed_start)}" style="min-width:190px" />
+        <input id="fend-${t.id}" type="datetime-local" value="${isoToLocalInputValue(t.fixed_end)}" style="min-width:190px" />
         <button data-id="${t.id}" data-action="save-task-meta">Save</button>
         <button data-id="${t.id}" data-done="1">Mark Done</button>
       </div>
@@ -114,9 +127,13 @@ async function renderTasks() {
       const scheduleMode = div.querySelector(`#mode-${t.id}`).value;
       const windowStartHourRaw = div.querySelector(`#wstart-${t.id}`).value;
       const windowEndHourRaw = div.querySelector(`#wend-${t.id}`).value;
+      const fixedStartRaw = div.querySelector(`#fstart-${t.id}`).value;
+      const fixedEndRaw = div.querySelector(`#fend-${t.id}`).value;
       const windowStartHour = windowStartHourRaw === '' ? null : Number(windowStartHourRaw);
       const windowEndHour = windowEndHourRaw === '' ? null : Number(windowEndHourRaw);
-      const resp = await api.patchTask(t.id, { energyDemand, focusType, scheduleMode, windowStartHour, windowEndHour });
+      const fixedStart = localInputValueToIso(fixedStartRaw);
+      const fixedEnd = localInputValueToIso(fixedEndRaw);
+      const resp = await api.patchTask(t.id, { energyDemand, focusType, scheduleMode, windowStartHour, windowEndHour, fixedStart, fixedEnd });
       if (resp.error) return alert(resp.error);
       await refreshAll();
     });
