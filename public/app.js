@@ -16,7 +16,21 @@ const today = new Date().toISOString().slice(0,10);
 let latestRecommendations = [];
 let runningSessionId = null;
 
+const SLOT_CONFIG = {
+  morning: { suggested: '09:00', window: '07:00–11:00' },
+  noon: { suggested: '14:00', window: '11:00–17:00' },
+  evening: { suggested: '21:00', window: '17:00–24:00' }
+};
+
 function qs(id){ return document.getElementById(id); }
+
+function getCurrentSlotUTC() {
+  const h = new Date().getUTCHours();
+  if (h >= 7 && h < 11) return 'morning';
+  if (h >= 11 && h < 17) return 'noon';
+  if (h >= 17 && h <= 23) return 'evening';
+  return null;
+}
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -67,18 +81,27 @@ async function renderCheckins() {
   const rows = res.data || [];
   const map = Object.fromEntries(rows.map(r => [r.slot, r]));
   const container = qs('checkinContainer');
+  const hint = qs('checkinHint');
   container.innerHTML = '';
+
+  const currentSlot = getCurrentSlotUTC();
+  hint.textContent = currentSlot
+    ? `Current slot: ${currentSlot}. Suggested check-in time: ${SLOT_CONFIG[currentSlot].suggested} UTC (window ${SLOT_CONFIG[currentSlot].window}).`
+    : 'Current time is outside suggested check-in windows. You can still backfill any slot below.';
 
   ['morning','noon','evening'].forEach(slot => {
     const row = map[slot] || {};
+    const isCurrent = slot === currentSlot;
     const div = document.createElement('div');
     div.className = 'row';
     div.innerHTML = `
-      <span style="width:70px">${slot}</span>
-      <input type="number" min="1" max="5" value="${row.energy || 3}" id="${slot}-energy" />
-      <input type="number" min="1" max="5" value="${row.focus || 3}" id="${slot}-focus" />
-      <input type="number" min="1" max="5" value="${row.mood || 3}" id="${slot}-mood" />
-      <button id="save-${slot}">Save</button>
+      <span style="width:90px">${slot}</span>
+      <span style="font-size:12px;color:#94a3b8">suggested: ${SLOT_CONFIG[slot].suggested} UTC</span>
+      <span style="font-size:12px;color:#94a3b8">window: ${SLOT_CONFIG[slot].window}</span>
+      <input type="number" min="1" max="5" value="${row.energy || 3}" id="${slot}-energy" title="Energy" />
+      <input type="number" min="1" max="5" value="${row.focus || 3}" id="${slot}-focus" title="Focus" />
+      <input type="number" min="1" max="5" value="${row.mood || 3}" id="${slot}-mood" title="Mood" />
+      <button id="save-${slot}">${isCurrent ? 'Save (Current Slot)' : 'Save'}</button>
     `;
     container.appendChild(div);
     div.querySelector(`#save-${slot}`).addEventListener('click', async () => {
@@ -90,7 +113,11 @@ async function renderCheckins() {
         mood: Number(div.querySelector(`#${slot}-mood`).value),
       });
       await refreshSchedulePreview();
-      alert(`${slot} saved`);
+      if (!isCurrent) {
+        alert(`${slot} saved. Friendly note: this is outside your current slot, but backfill is allowed.`);
+      } else {
+        alert(`${slot} saved`);
+      }
     });
   });
 }
