@@ -334,12 +334,25 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
       const candidateStart = new Date(new Date(w.start).getTime() + w.cursorMin * 60000);
       const candidateEnd = new Date(candidateStart.getTime() + duration * 60000);
 
-      if (task.schedule_mode === 'windowed' && task.window_start_hour != null && task.window_end_hour != null) {
-        const s = getHourMinuteInTimezone(candidateStart, GCAL_TIMEZONE);
-        const e = getHourMinuteInTimezone(candidateEnd, GCAL_TIMEZONE);
-        const startVal = s.hour + s.minute / 60;
-        const endVal = e.hour + e.minute / 60;
-        if (startVal < task.window_start_hour || endVal > task.window_end_hour) continue;
+      if (task.schedule_mode === 'windowed') {
+        let windowStartVal = task.window_start_hour;
+        let windowEndVal = task.window_end_hour;
+
+        // Support minute-precision window via fixed_start/fixed_end inputs.
+        if ((windowStartVal == null || windowEndVal == null) && task.fixed_start && task.fixed_end) {
+          const ws = getHourMinuteInTimezone(new Date(task.fixed_start), GCAL_TIMEZONE);
+          const we = getHourMinuteInTimezone(new Date(task.fixed_end), GCAL_TIMEZONE);
+          windowStartVal = ws.hour + ws.minute / 60;
+          windowEndVal = we.hour + we.minute / 60;
+        }
+
+        if (windowStartVal != null && windowEndVal != null) {
+          const s = getHourMinuteInTimezone(candidateStart, GCAL_TIMEZONE);
+          const e = getHourMinuteInTimezone(candidateEnd, GCAL_TIMEZONE);
+          const startVal = s.hour + s.minute / 60;
+          const endVal = e.hour + e.minute / 60;
+          if (startVal < windowStartVal || endVal > windowEndVal) continue;
+        }
       }
 
       const energyFit = 1 - Math.abs(task.energy_demand - w.energy) / 4;
