@@ -10,6 +10,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 8787;
+const GCAL_API_KEY = process.env.GCAL_API_KEY || '';
+const GCAL_CALENDAR_ID = process.env.GCAL_CALENDAR_ID || '';
+const GCAL_TIMEZONE = process.env.GCAL_TIMEZONE || 'America/Chicago';
 const db = new Database(path.join(__dirname, 'energy.db'));
 
 db.pragma('journal_mode = WAL');
@@ -95,7 +98,41 @@ function slotEnergyLevel(value) {
   return 'mid';
 }
 
-function generateSchedule(date, strategy = 'steady') {
+function toSlotByHourUTC(hour) {
+  if (hour >= 9 && hour < 12) return 'morning';
+  if (hour >= 13 && hour < 18) return 'noon';
+  return 'evening';
+}
+
+function getSlotMeetingLoad(events = []) {
+  const slotLoad = { morning: 0, noon: 0, evening: 0 };
+  for (const e of events) {
+    const start = new Date(e.start.dateTime || e.start.date);
+    const end = new Date(e.end.dateTime || e.end.date);
+    const durationMin = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+    const slot = toSlotByHourUTC(start.getUTCHours());
+    slotLoad[slot] += durationMin;
+  }
+  return slotLoad;
+}
+
+async function fetchGoogleCalendarEvents(date) {
+  if (!GCAL_API_KEY || !GCAL_CALENDAR_ID) {
+    return { enabled: false, reason: 'Missing GCAL_API_KEY or GCAL_CALENDAR_ID', events: [] };
+  }
+  const timeMin = `${date}T00:00:00Z`;
+  const timeMax = `${date}T23:59:59Z`;
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_CALENDAR_ID)}/events?singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&key=${encodeURIComponent(GCAL_API_KEY)}&timeZone=${encodeURIComponent(GCAL_TIMEZONE)}`;
+
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    return { enabled: true, reason: `Google Calendar fetch failed: ${resp.status}`, events: [] };
+  }
+  const json = await resp.json();
+  return { enabled: true, reason: null, events: json.items || [] };
+}
+
+function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0, noon: 0, evening: 0 }) {
   const tasks = db
     .prepare("SELECT * FROM tasks WHERE status IN ('todo','doing') ORDER BY importance DESC, energy_demand DESC, created_at ASC")
     .all();
@@ -107,52 +144,79 @@ function generateSchedule(date, strategy = 'steady') {
     evening: checkins.evening?.energy ?? 2,
   };
 
-  if (strategy === 'sprint') {
-    baseCurve.morning = Math.min(5, baseCurve.morning + 1);
-  } else if (strategy === 'conservative') {
-    baseCurve.evening = Math.max(1, baseCurve.evening - 1);
-  }
+  if (strategy === 'sprint') baseCurve.morning = Math.min(5, baseCurve.morning + 1);
+  if (strategy === 'conservative') baseCurve.evening = Math.max(1, baseCurve.evening - 1);
 
   const windows = [
-    { slot: 'morning', start: `${date}T09:00:00`, end: `${date}T12:00:00`, energy: baseCurve.morning },
-    { slot: 'noon', start: `${date}T13:30:00`, end: `${date}T17:30:00`, energy: baseCurve.noon },
-    { slot: 'evening', start: `${date}T20:00:00`, end: `${date}T22:00:00`, energy: baseCurve.evening },
-  ];
+    { slot: 'morning', start: `${date}T09:00:00Z`, end: `${date}T12:00:00Z`, energy: baseCurve.morning, cursorMin: 0, lengthMin: 180 },
+    { slot: 'noon', start: `${date}T13:30:00Z`, end: `${date}T17:30:00Z`, energy: baseCurve.noon, cursorMin: 0, lengthMin: 240 },
+    { slot: 'evening', start: `${date}T20:00:00Z`, end: `${date}T22:00:00Z`, energy: baseCurve.evening, cursorMin: 0, lengthMin: 120 },
+  ].map(w => ({ ...w, availableMin: Math.max(30, w.lengthMin - Math.min(w.lengthMin - 30, meetingLoad[w.slot] || 0)) }));
 
-  const sortedWindows = [...windows].sort((a, b) => b.energy - a.energy);
   const recommendations = [];
+  let lastFocusType = null;
+  let lastDevice = null;
 
   for (const task of tasks) {
-    let targetWindow = sortedWindows[0];
-    if (task.energy_demand >= 4) {
-      targetWindow = sortedWindows[0];
-    } else if (task.energy_demand <= 2) {
-      targetWindow = windows.find(w => w.slot === 'evening') || sortedWindows[2];
-    } else {
-      targetWindow = sortedWindows[1] || sortedWindows[0];
+    const idealDuration = task.estimated_minutes || (task.energy_demand >= 4 ? 90 : task.energy_demand <= 2 ? 30 : 50);
+    const maxBlock = strategy === 'sprint' ? 120 : strategy === 'conservative' ? 60 : 90;
+    const minBlock = task.energy_demand >= 4 ? 45 : 25;
+    const duration = Math.max(minBlock, Math.min(maxBlock, idealDuration));
+
+    let best = null;
+    for (const w of windows) {
+      const remains = w.availableMin - w.cursorMin;
+      if (remains < duration) continue;
+
+      const energyFit = 1 - Math.abs(task.energy_demand - w.energy) / 4;
+      const priority = task.importance === 'mit' ? 1 : 0.5;
+      const switchPenalty = (lastFocusType && lastFocusType !== task.focus_type ? 0.12 : 0) +
+        (lastDevice && task.context_device && lastDevice !== task.context_device ? 0.08 : 0);
+      const meetingPenalty = Math.min(0.25, (meetingLoad[w.slot] || 0) / 240 * 0.25);
+
+      const score = energyFit * 0.55 + priority * 0.25 + (1 - switchPenalty) * 0.12 + (1 - meetingPenalty) * 0.08;
+      if (!best || score > best.score) best = { w, score, switchPenalty, meetingPenalty };
     }
 
-    const duration = task.estimated_minutes || (task.energy_demand >= 4 ? 90 : 45);
-    const start = targetWindow.start;
-    const endDate = new Date(new Date(start).getTime() + duration * 60 * 1000);
+    if (!best) continue;
 
-    const energyFit = 1 - Math.abs(task.energy_demand - targetWindow.energy) / 4;
-    const priority = task.importance === 'mit' ? 1 : 0.5;
-    const matchScore = Number((energyFit * 0.7 + priority * 0.3).toFixed(2));
+    const startDate = new Date(new Date(best.w.start).getTime() + best.w.cursorMin * 60000);
+    const endDate = new Date(startDate.getTime() + duration * 60000);
+    best.w.cursorMin += duration;
+
+    const reasonBits = [
+      `energy fit ${Math.round((1 - Math.abs(task.energy_demand - best.w.energy) / 4) * 100)}%`,
+      best.switchPenalty > 0 ? 'switch cost applied' : 'low switch cost',
+      (meetingLoad[best.w.slot] || 0) > 0 ? `meeting load ${meetingLoad[best.w.slot]}m` : 'light meeting load'
+    ];
 
     recommendations.push({
       taskId: task.id,
       title: task.title,
-      slot: targetWindow.slot,
-      start,
+      slot: best.w.slot,
+      start: startDate.toISOString(),
       end: endDate.toISOString(),
-      matchScore,
-      reason: `Task demand (${task.energy_demand}) matches ${targetWindow.slot} energy (${targetWindow.energy})`,
+      duration,
+      matchScore: Number(best.score.toFixed(2)),
+      reason: reasonBits.join(' · '),
     });
+
+    lastFocusType = task.focus_type;
+    lastDevice = task.context_device || lastDevice;
+
+    if (best.w.cursorMin >= 90) {
+      best.w.cursorMin += 10; // insert a recovery block
+    }
   }
 
   return {
-    windows: windows.map(w => ({ slot: w.slot, energyLevel: slotEnergyLevel(w.energy), energy: w.energy })),
+    windows: windows.map(w => ({
+      slot: w.slot,
+      energyLevel: slotEnergyLevel(w.energy),
+      energy: w.energy,
+      meetingMinutes: meetingLoad[w.slot] || 0,
+      availableMinutes: w.availableMin,
+    })),
     recommendations,
   };
 }
@@ -342,10 +406,15 @@ app.get('/api/v1/sessions', (req, res) => {
 });
 
 // --- Schedule ---
-app.post('/api/v1/schedule/generate', (req, res) => {
-  const { date = todayStr(), strategy = 'steady' } = req.body;
-  const result = generateSchedule(date, strategy);
-  res.json({ data: result, error: null });
+app.post('/api/v1/schedule/generate', async (req, res) => {
+  const { date = todayStr(), strategy = 'steady', includeCalendar = true } = req.body;
+  let calendar = { enabled: false, reason: 'Calendar integration disabled', events: [] };
+  if (includeCalendar) {
+    calendar = await fetchGoogleCalendarEvents(date);
+  }
+  const meetingLoad = getSlotMeetingLoad(calendar.events || []);
+  const result = generateSchedule(date, strategy, meetingLoad);
+  res.json({ data: { ...result, calendar: { enabled: calendar.enabled, reason: calendar.reason, meetingLoad, meetingCount: (calendar.events || []).length } }, error: null });
 });
 
 app.post('/api/v1/schedule/apply', (req, res) => {
@@ -380,7 +449,62 @@ app.get('/api/v1/review/daily', (req, res) => {
   res.json({ data: row, error: null });
 });
 
-app.get('/api/v1/health', (_req, res) => res.json({ data: { ok: true }, error: null }));
+app.get('/api/v1/calendar/meeting-density', async (req, res) => {
+  const date = req.query.date || todayStr();
+  const calendar = await fetchGoogleCalendarEvents(date);
+  const slotLoad = getSlotMeetingLoad(calendar.events || []);
+  const totalMinutes = Object.values(slotLoad).reduce((a, b) => a + b, 0);
+  const densityLevel = totalMinutes >= 240 ? 'high' : totalMinutes >= 120 ? 'mid' : 'low';
+  res.json({
+    data: {
+      date,
+      enabled: calendar.enabled,
+      reason: calendar.reason,
+      timezone: GCAL_TIMEZONE,
+      meetings: (calendar.events || []).length,
+      totalMinutes,
+      densityLevel,
+      slotLoad,
+    },
+    error: null,
+  });
+});
+
+app.get('/api/v1/insights/weekly', (req, res) => {
+  const endDate = String(req.query.endDate || todayStr());
+  const out = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(`${endDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - i);
+    const date = d.toISOString().slice(0, 10);
+
+    const sessions = db.prepare('SELECT * FROM sessions WHERE date(start_at)=?').all(date);
+    const checkins = getCheckinsMap(date);
+    let mismatchCount = 0;
+    let highEnergyDone = 0;
+    let highEnergyTotal = 0;
+
+    for (const s of sessions) {
+      const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(s.task_id);
+      if (!task) continue;
+      const slot = toSlotByHourUTC(new Date(s.start_at).getUTCHours());
+      const slotEnergy = checkins[slot]?.energy ?? (slot === 'morning' ? 4 : slot === 'noon' ? 3 : 2);
+      if (task.energy_demand >= 4) {
+        highEnergyTotal += 1;
+        if (s.end_at) highEnergyDone += 1;
+      }
+      if (task.energy_demand >= 4 && slotEnergy <= 2) mismatchCount += 1;
+    }
+
+    const mismatchRate = sessions.length ? Number((mismatchCount / sessions.length).toFixed(2)) : 0;
+    const highEnergyCompletionRate = highEnergyTotal ? Number((highEnergyDone / highEnergyTotal).toFixed(2)) : 0;
+    out.push({ date, mismatchRate, highEnergyCompletionRate, sessions: sessions.length });
+  }
+
+  res.json({ data: out, error: null });
+});
+
+app.get('/api/v1/health', (_req, res) => res.json({ data: { ok: true, timezone: GCAL_TIMEZONE }, error: null }));
 
 app.listen(PORT, () => {
   console.log(`Energy app running on http://localhost:${PORT}`);

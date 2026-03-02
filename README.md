@@ -50,9 +50,27 @@ Open: `http://localhost:8787`
 - `POST /api/v1/schedule/apply`
 - `GET /api/v1/review/daily`
 
-## 5) Next Steps (v0.2)
+## 5) v0.2 Features Added
 
-1. Integrate Google Calendar (automatic meeting density)
-2. Add weekly trend charts (mismatch rate / high-energy task completion rate)
-3. Improve scheduling algorithm (context-switch cost + dynamic block sizing)
-4. Add user auth (JWT) and multi-device sync
+1. Google Calendar meeting-density endpoint + schedule-aware meeting load
+2. Weekly trend insights endpoint (mismatch rate / high-energy completion)
+3. Smarter scheduling (switch-cost penalty + dynamic block sizing + recovery blocks)
+
+### Google Calendar Setup (optional)
+
+Set environment variables before startup:
+
+```bash
+export GCAL_API_KEY="your_google_api_key"
+export GCAL_CALENDAR_ID="your_calendar_id@group.calendar.google.com"
+export GCAL_TIMEZONE="America/Chicago"
+npm start
+```
+
+If not set, the app still works and returns a friendly "not active" calendar status.
+
+## 6) Next Steps (v0.3)
+
+1. OAuth-based Google account authorization (instead of API key + calendarId)
+2. Visual chart components for trends (line/bar)
+3. User auth (JWT) and multi-device sync

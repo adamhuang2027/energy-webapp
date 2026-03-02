@@ -59,9 +59,11 @@
               <option value="sprint">sprint</option>
               <option value="conservative">conservative</option>
             </select>
+            <button id="btnLoadCalendar">Load Google Calendar Meeting Density</button>
             <button id="btnGenerate">Generate Schedule</button>
             <button id="btnApply">Apply Schedule</button>
           </div>
+          <div id="meetingDensity" style="margin-top:8px;color:#93c5fd"></div>
           <div id="windows" class="windows"></div>
           <div id="recommendations"></div>
         </div>
@@ -102,6 +104,10 @@
       <section id="review" class="panel">
         <h2>Night Review (1 min)</h2>
         <div class="card" id="reviewCard"></div>
+        <div class="card">
+          <h3>Weekly Trends (7 days)</h3>
+          <div id="weeklyTrends"></div>
+        </div>
         <button id="btnRefreshReview">Refresh Review</button>
       </section>
     </main>

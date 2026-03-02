@@ -9,12 +9,15 @@ const api = {
   startSession: (body) => fetch('/api/v1/sessions/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   endSession: (id, body) => fetch(`/api/v1/sessions/${id}/end`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   getSessions: (date) => fetch(`/api/v1/sessions?date=${date}`).then(r => r.json()),
-  getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json())
+  getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json()),
+  getMeetingDensity: (date) => fetch(`/api/v1/calendar/meeting-density?date=${date}`).then(r => r.json()),
+  getWeeklyInsights: (endDate) => fetch(`/api/v1/insights/weekly?endDate=${endDate}`).then(r => r.json())
 };
 
 const CT_TZ = 'America/Chicago';
 const today = new Date().toISOString().slice(0,10);
 let latestRecommendations = [];
+let latestCalendar = null;
 let runningSessionId = null;
 
 const SLOT_CONFIG = {
@@ -130,19 +133,27 @@ async function renderCheckins() {
 
 async function refreshSchedulePreview() {
   const strategy = qs('strategy').value;
-  const res = await api.generateSchedule({ date: today, strategy });
-  const data = res.data || { windows: [], recommendations: [] };
+  const res = await api.generateSchedule({ date: today, strategy, includeCalendar: true });
+  const data = res.data || { windows: [], recommendations: [], calendar: null };
   latestRecommendations = data.recommendations || [];
+  latestCalendar = data.calendar || null;
 
   qs('windows').innerHTML = data.windows.map(w =>
-    `<div class="badge ${w.energyLevel}">${w.slot}: ${w.energyLevel} (E${w.energy})</div>`
+    `<div class="badge ${w.energyLevel}">${w.slot}: ${w.energyLevel} (E${w.energy}) · meetings ${w.meetingMinutes || 0}m · avail ${w.availableMinutes || '-'}m</div>`
   ).join('');
+
+  const calText = latestCalendar
+    ? (latestCalendar.enabled
+      ? `Google Calendar: ${latestCalendar.meetingCount} meetings. Slot load (min) — morning ${latestCalendar.meetingLoad.morning}, noon ${latestCalendar.meetingLoad.noon}, evening ${latestCalendar.meetingLoad.evening}.`
+      : `Google Calendar not active: ${latestCalendar.reason}`)
+    : 'Google Calendar status unavailable';
+  qs('meetingDensity').textContent = calText;
 
   qs('recommendations').innerHTML = latestRecommendations.map(r => `
     <div class="rec-item">
       <b>${r.title}</b> → ${r.slot}
       <div>Time: ${new Date(r.start).toLocaleTimeString()} - ${new Date(r.end).toLocaleTimeString()}</div>
-      <div>Match Score: ${r.matchScore}</div>
+      <div>Duration: ${r.duration || '-'} mins · Match Score: ${r.matchScore}</div>
       <div>${r.reason}</div>
     </div>
   `).join('') || 'No recommendations yet';
@@ -184,6 +195,22 @@ async function renderReview() {
   `;
 }
 
+async function renderWeeklyTrends() {
+  const res = await api.getWeeklyInsights(today);
+  const rows = res.data || [];
+  const el = qs('weeklyTrends');
+  el.innerHTML = rows.map(r => {
+    const mismatchPct = Math.round((r.mismatchRate || 0) * 100);
+    const highEnergyPct = Math.round((r.highEnergyCompletionRate || 0) * 100);
+    return `<div class="rec-item">
+      <div><b>${r.date}</b></div>
+      <div>Mismatch Rate: ${mismatchPct}%</div>
+      <div>High-Energy Completion: ${highEnergyPct}%</div>
+      <div>Sessions: ${r.sessions}</div>
+    </div>`;
+  }).join('') || 'No weekly trend data yet';
+}
+
 qs('taskForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = {
@@ -197,6 +224,14 @@ qs('taskForm').addEventListener('submit', async (e) => {
   if (res.error) return alert(res.error);
   qs('taskForm').reset();
   await refreshAll();
+});
+
+qs('btnLoadCalendar').addEventListener('click', async () => {
+  const res = await api.getMeetingDensity(today);
+  const d = res.data;
+  qs('meetingDensity').textContent = d.enabled
+    ? `Google Calendar loaded (${d.timezone}): ${d.meetings} meetings, total ${d.totalMinutes} mins, density ${d.densityLevel}.`
+    : `Google Calendar not active: ${d.reason}`;
 });
 
 qs('btnGenerate').addEventListener('click', refreshSchedulePreview);
@@ -229,7 +264,10 @@ qs('btnEnd').addEventListener('click', async () => {
   await refreshAll();
 });
 
-qs('btnRefreshReview').addEventListener('click', renderReview);
+qs('btnRefreshReview').addEventListener('click', async () => {
+  await renderReview();
+  await renderWeeklyTrends();
+});
 
 async function refreshAll() {
   await renderTasks();
@@ -237,6 +275,7 @@ async function refreshAll() {
   await refreshSchedulePreview();
   await renderSessions();
   await renderReview();
+  await renderWeeklyTrends();
 }
 
 refreshAll();
