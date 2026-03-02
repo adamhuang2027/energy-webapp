@@ -164,6 +164,17 @@ function zonedTimeToUtcIso(date, hour, minute, timeZone = GCAL_TIMEZONE) {
   return new Date(utcMs).toISOString();
 }
 
+function getHourMinuteInTimezone(date, timeZone = GCAL_TIMEZONE) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return { hour: Number(map.hour), minute: Number(map.minute) };
+}
+
 function getSlotMeetingLoad(events = []) {
   const slotLoad = { morning: 0, noon: 0, evening: 0 };
   for (const e of events) {
@@ -305,10 +316,15 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
       const remains = w.availableMin - w.cursorMin;
       if (remains < duration) continue;
 
+      const candidateStart = new Date(new Date(w.start).getTime() + w.cursorMin * 60000);
+      const candidateEnd = new Date(candidateStart.getTime() + duration * 60000);
+
       if (task.schedule_mode === 'windowed' && task.window_start_hour != null && task.window_end_hour != null) {
-        const slotStartHourUtc = new Date(w.start).getUTCHours();
-        const slotEndHourUtc = new Date(w.end).getUTCHours();
-        if (slotEndHourUtc <= task.window_start_hour || slotStartHourUtc >= task.window_end_hour) continue;
+        const s = getHourMinuteInTimezone(candidateStart, GCAL_TIMEZONE);
+        const e = getHourMinuteInTimezone(candidateEnd, GCAL_TIMEZONE);
+        const startVal = s.hour + s.minute / 60;
+        const endVal = e.hour + e.minute / 60;
+        if (startVal < task.window_start_hour || endVal > task.window_end_hour) continue;
       }
 
       const energyFit = 1 - Math.abs(task.energy_demand - w.energy) / 4;
