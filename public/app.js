@@ -79,9 +79,26 @@ async function renderTasks() {
       <span class="badge">${t.importance}</span>
       <span class="badge">${t.status}</span>
       <div>scheduled: ${t.scheduled_start || '-'} ~ ${t.scheduled_end || '-'}</div>
-      <button data-id="${t.id}" data-done="1">Mark Done</button>
+      <div class="row" style="margin-top:6px">
+        <label style="font-size:12px;color:#94a3b8">Energy Demand</label>
+        <select id="energy-${t.id}">
+          <option value="1" ${t.energy_demand === 1 ? 'selected' : ''}>1</option>
+          <option value="2" ${t.energy_demand === 2 ? 'selected' : ''}>2</option>
+          <option value="3" ${t.energy_demand === 3 ? 'selected' : ''}>3</option>
+          <option value="4" ${t.energy_demand === 4 ? 'selected' : ''}>4</option>
+          <option value="5" ${t.energy_demand === 5 ? 'selected' : ''}>5</option>
+        </select>
+        <button data-id="${t.id}" data-action="save-energy">Save Energy</button>
+        <button data-id="${t.id}" data-done="1">Mark Done</button>
+      </div>
     `;
-    div.querySelector('button').addEventListener('click', async () => {
+    div.querySelector('[data-action="save-energy"]').addEventListener('click', async () => {
+      const energyDemand = Number(div.querySelector(`#energy-${t.id}`).value);
+      const resp = await api.patchTask(t.id, { energyDemand });
+      if (resp.error) return alert(resp.error);
+      await refreshAll();
+    });
+    div.querySelector('[data-done="1"]').addEventListener('click', async () => {
       await api.patchTask(t.id, { status: 'done' });
       await refreshAll();
     });
