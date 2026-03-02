@@ -45,7 +45,7 @@ async function renderTasks() {
       <span class="badge">${t.importance}</span>
       <span class="badge">${t.status}</span>
       <div>scheduled: ${t.scheduled_start || '-'} ~ ${t.scheduled_end || '-'}</div>
-      <button data-id="${t.id}" data-done="1">标记完成</button>
+      <button data-id="${t.id}" data-done="1">Mark Done</button>
     `;
     div.querySelector('button').addEventListener('click', async () => {
       await api.patchTask(t.id, { status: 'done' });
@@ -78,7 +78,7 @@ async function renderCheckins() {
       <input type="number" min="1" max="5" value="${row.energy || 3}" id="${slot}-energy" />
       <input type="number" min="1" max="5" value="${row.focus || 3}" id="${slot}-focus" />
       <input type="number" min="1" max="5" value="${row.mood || 3}" id="${slot}-mood" />
-      <button id="save-${slot}">保存</button>
+      <button id="save-${slot}">Save</button>
     `;
     container.appendChild(div);
     div.querySelector(`#save-${slot}`).addEventListener('click', async () => {
@@ -90,7 +90,7 @@ async function renderCheckins() {
         mood: Number(div.querySelector(`#${slot}-mood`).value),
       });
       await refreshSchedulePreview();
-      alert(`${slot} 已保存`);
+      alert(`${slot} saved`);
     });
   });
 }
@@ -108,11 +108,11 @@ async function refreshSchedulePreview() {
   qs('recommendations').innerHTML = latestRecommendations.map(r => `
     <div class="rec-item">
       <b>${r.title}</b> → ${r.slot}
-      <div>时间: ${new Date(r.start).toLocaleTimeString()} - ${new Date(r.end).toLocaleTimeString()}</div>
-      <div>匹配分: ${r.matchScore}</div>
+      <div>Time: ${new Date(r.start).toLocaleTimeString()} - ${new Date(r.end).toLocaleTimeString()}</div>
+      <div>Match Score: ${r.matchScore}</div>
       <div>${r.reason}</div>
     </div>
-  `).join('') || '暂无推荐';
+  `).join('') || 'No recommendations yet';
 }
 
 async function renderSessions() {
@@ -124,8 +124,8 @@ async function renderSessions() {
   const running = list.find(s => !s.end_at);
   runningSessionId = running?.id || null;
   qs('runningInfo').textContent = running
-    ? `运行中 session#${running.id} task#${running.task_id} started: ${new Date(running.start_at).toLocaleTimeString()}`
-    : '当前无运行中的任务';
+    ? `Running session #${running.id} task #${running.task_id} started: ${new Date(running.start_at).toLocaleTimeString()}`
+    : 'No running task right now';
 
   list.forEach(s => {
     const div = document.createElement('div');
@@ -143,11 +143,11 @@ async function renderReview() {
   const res = await api.getReview(today);
   const d = res.data;
   qs('reviewCard').innerHTML = `
-    <div>日期: ${d.review_date}</div>
-    <div>加权完成率: ${(d.weighted_completion_rate * 100).toFixed(1)}%</div>
-    <div>错配次数: ${d.mismatch_count}</div>
-    <div>精力负债分: ${d.debt_score}</div>
-    <div><b>明日建议:</b> ${d.suggestion_text}</div>
+    <div>Date: ${d.review_date}</div>
+    <div>Weighted Completion Rate: ${(d.weighted_completion_rate * 100).toFixed(1)}%</div>
+    <div>Mismatch Count: ${d.mismatch_count}</div>
+    <div>Energy Debt Score: ${d.debt_score}</div>
+    <div><b>Suggestion for Tomorrow:</b> ${d.suggestion_text}</div>
   `;
 }
 
@@ -168,22 +168,22 @@ qs('taskForm').addEventListener('submit', async (e) => {
 
 qs('btnGenerate').addEventListener('click', refreshSchedulePreview);
 qs('btnApply').addEventListener('click', async () => {
-  if (!latestRecommendations.length) return alert('先生成排程');
+  if (!latestRecommendations.length) return alert('Generate a schedule first');
   await api.applySchedule({ date: today, recommendations: latestRecommendations.map(r => ({ taskId: r.taskId, start: r.start, end: r.end })) });
   await refreshAll();
-  alert('排程已应用');
+  alert('Schedule applied');
 });
 
 qs('btnStart').addEventListener('click', async () => {
   const taskId = Number(qs('startTaskSelect').value);
-  if (!taskId) return alert('请先选择任务');
+  if (!taskId) return alert('Please select a task first');
   const res = await api.startSession({ taskId });
   if (res.error) return alert(res.error);
   await refreshAll();
 });
 
 qs('btnEnd').addEventListener('click', async () => {
-  if (!runningSessionId) return alert('当前没有运行中的 session');
+  if (!runningSessionId) return alert('There is no running session right now');
   const reasonTags = qs('reasonTags').value.split(',').map(s => s.trim()).filter(Boolean);
   const res = await api.endSession(runningSessionId, {
     actualEnergyCost: Number(qs('energyCost').value),

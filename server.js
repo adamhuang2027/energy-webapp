@@ -147,7 +147,7 @@ function generateSchedule(date, strategy = 'steady') {
       start,
       end: endDate.toISOString(),
       matchScore,
-      reason: `任务能耗(${task.energy_demand})匹配${targetWindow.slot}能量(${targetWindow.energy})`,
+      reason: `Task demand (${task.energy_demand}) matches ${targetWindow.slot} energy (${targetWindow.energy})`,
     });
   }
 
@@ -185,11 +185,11 @@ function computeDailyReview(date) {
   }
 
   const debtScore = Number((mismatchCount * 0.8 + (1 - weightedCompletionRate) * 2).toFixed(2));
-  let suggestion = '保持今天节奏，明天先做一个高能耗 MIT。';
+  let suggestion = 'Keep today’s rhythm. Start tomorrow with one high-energy MIT.';
   if (mismatchCount >= 2) {
-    suggestion = '你今天高能任务错配较多，建议明天把 MIT 前移到上午高能窗口。';
+    suggestion = 'You had several high-energy mismatches today. Move your MIT to the morning high-energy window.';
   } else if (weightedCompletionRate < 0.5) {
-    suggestion = '明天减少任务数量，保留 1 个 MIT + 2 个次要任务。';
+    suggestion = 'Reduce task load tomorrow: keep 1 MIT + 2 secondary tasks.';
   }
 
   return { weightedCompletionRate, mismatchCount, debtScore, suggestion };
