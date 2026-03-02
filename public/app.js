@@ -88,13 +88,20 @@ async function renderTasks() {
           <option value="4" ${t.energy_demand === 4 ? 'selected' : ''}>4</option>
           <option value="5" ${t.energy_demand === 5 ? 'selected' : ''}>5</option>
         </select>
-        <button data-id="${t.id}" data-action="save-energy">Save Energy</button>
+        <label style="font-size:12px;color:#94a3b8">Focus Type</label>
+        <select id="focus-${t.id}">
+          <option value="deep" ${t.focus_type === 'deep' ? 'selected' : ''}>deep</option>
+          <option value="shallow" ${t.focus_type === 'shallow' ? 'selected' : ''}>shallow</option>
+          <option value="social" ${t.focus_type === 'social' ? 'selected' : ''}>social</option>
+        </select>
+        <button data-id="${t.id}" data-action="save-task-meta">Save</button>
         <button data-id="${t.id}" data-done="1">Mark Done</button>
       </div>
     `;
-    div.querySelector('[data-action="save-energy"]').addEventListener('click', async () => {
+    div.querySelector('[data-action="save-task-meta"]').addEventListener('click', async () => {
       const energyDemand = Number(div.querySelector(`#energy-${t.id}`).value);
-      const resp = await api.patchTask(t.id, { energyDemand });
+      const focusType = div.querySelector(`#focus-${t.id}`).value;
+      const resp = await api.patchTask(t.id, { energyDemand, focusType });
       if (resp.error) return alert(resp.error);
       await refreshAll();
     });
