@@ -12,20 +12,26 @@ const api = {
   getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json())
 };
 
+const CT_TZ = 'America/Chicago';
 const today = new Date().toISOString().slice(0,10);
 let latestRecommendations = [];
 let runningSessionId = null;
 
 const SLOT_CONFIG = {
-  morning: { suggested: '09:00', window: '07:00–11:00' },
-  noon: { suggested: '14:00', window: '11:00–17:00' },
-  evening: { suggested: '21:00', window: '17:00–24:00' }
+  morning: { suggested: '09:00 CT', window: '07:00–11:00 CT' },
+  noon: { suggested: '14:00 CT', window: '11:00–17:00 CT' },
+  evening: { suggested: '21:00 CT', window: '17:00–24:00 CT' }
 };
 
 function qs(id){ return document.getElementById(id); }
 
-function getCurrentSlotUTC() {
-  const h = new Date().getUTCHours();
+function getCurrentSlotCT() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CT_TZ,
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const h = Number(parts.find(p => p.type === 'hour')?.value || '0');
   if (h >= 7 && h < 11) return 'morning';
   if (h >= 11 && h < 17) return 'noon';
   if (h >= 17 && h <= 23) return 'evening';
@@ -84,10 +90,10 @@ async function renderCheckins() {
   const hint = qs('checkinHint');
   container.innerHTML = '';
 
-  const currentSlot = getCurrentSlotUTC();
+  const currentSlot = getCurrentSlotCT();
   hint.textContent = currentSlot
-    ? `Current slot: ${currentSlot}. Suggested check-in time: ${SLOT_CONFIG[currentSlot].suggested} UTC (window ${SLOT_CONFIG[currentSlot].window}).`
-    : 'Current time is outside suggested check-in windows. You can still backfill any slot below.';
+    ? `Current slot (Central Time): ${currentSlot}. Suggested check-in time: ${SLOT_CONFIG[currentSlot].suggested} (window ${SLOT_CONFIG[currentSlot].window}).`
+    : 'Current time (Central Time) is outside suggested check-in windows. You can still backfill any slot below.';
 
   ['morning','noon','evening'].forEach(slot => {
     const row = map[slot] || {};
@@ -96,7 +102,7 @@ async function renderCheckins() {
     div.className = 'row';
     div.innerHTML = `
       <span style="width:90px">${slot}</span>
-      <span style="font-size:12px;color:#94a3b8">suggested: ${SLOT_CONFIG[slot].suggested} UTC</span>
+      <span style="font-size:12px;color:#94a3b8">suggested: ${SLOT_CONFIG[slot].suggested}</span>
       <span style="font-size:12px;color:#94a3b8">window: ${SLOT_CONFIG[slot].window}</span>
       <input type="number" min="1" max="5" value="${row.energy || 3}" id="${slot}-energy" title="Energy" />
       <input type="number" min="1" max="5" value="${row.focus || 3}" id="${slot}-focus" title="Focus" />
