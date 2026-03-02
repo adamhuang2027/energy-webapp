@@ -11,7 +11,9 @@ const api = {
   getSessions: (date) => fetch(`/api/v1/sessions?date=${date}`).then(r => r.json()),
   getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json()),
   getMeetingDensity: (date) => fetch(`/api/v1/calendar/meeting-density?date=${date}`).then(r => r.json()),
-  getWeeklyInsights: (endDate) => fetch(`/api/v1/insights/weekly?endDate=${endDate}`).then(r => r.json())
+  getWeeklyInsights: (endDate) => fetch(`/api/v1/insights/weekly?endDate=${endDate}`).then(r => r.json()),
+  getGoogleStatus: () => fetch('/api/v1/oauth/google/status').then(r => r.json()),
+  disconnectGoogle: () => fetch('/api/v1/oauth/google/logout', { method: 'POST' }).then(r => r.json())
 };
 
 const CT_TZ = 'America/Chicago';
@@ -211,6 +213,16 @@ async function renderWeeklyTrends() {
   }).join('') || 'No weekly trend data yet';
 }
 
+async function renderGoogleStatus() {
+  const res = await api.getGoogleStatus();
+  const d = res.data;
+  qs('googleStatus').textContent = d.connected
+    ? `Google OAuth connected. Calendar: ${d.calendarId}. Timezone: ${d.timezone}`
+    : (d.oauthConfigured
+      ? `Google OAuth configured but not connected. Click "Connect Google Calendar (OAuth)".`
+      : 'Google OAuth not configured on server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
+}
+
 qs('taskForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = {
@@ -224,6 +236,16 @@ qs('taskForm').addEventListener('submit', async (e) => {
   if (res.error) return alert(res.error);
   qs('taskForm').reset();
   await refreshAll();
+});
+
+qs('btnConnectGoogle').addEventListener('click', () => {
+  window.location.href = '/api/v1/oauth/google/start';
+});
+
+qs('btnDisconnectGoogle').addEventListener('click', async () => {
+  await api.disconnectGoogle();
+  await renderGoogleStatus();
+  qs('meetingDensity').textContent = 'Google disconnected.';
 });
 
 qs('btnLoadCalendar').addEventListener('click', async () => {
@@ -270,6 +292,7 @@ qs('btnRefreshReview').addEventListener('click', async () => {
 });
 
 async function refreshAll() {
+  await renderGoogleStatus();
   await renderTasks();
   await renderCheckins();
   await refreshSchedulePreview();

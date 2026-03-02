@@ -56,18 +56,26 @@ Open: `http://localhost:8787`
 2. Weekly trend insights endpoint (mismatch rate / high-energy completion)
 3. Smarter scheduling (switch-cost penalty + dynamic block sizing + recovery blocks)
 
-### Google Calendar Setup (optional)
+### Google Calendar Setup (OAuth recommended)
 
 Set environment variables before startup:
 
 ```bash
-export GCAL_API_KEY="your_google_api_key"
-export GCAL_CALENDAR_ID="your_calendar_id@group.calendar.google.com"
+export APP_BASE_URL="http://localhost:8787"
+export SESSION_SECRET="replace_with_random_secret"
+export GOOGLE_CLIENT_ID="your_google_oauth_client_id"
+export GOOGLE_CLIENT_SECRET="your_google_oauth_client_secret"
+export GOOGLE_REDIRECT_URI="http://localhost:8787/api/v1/oauth/google/callback"
+export GCAL_CALENDAR_ID="primary"
 export GCAL_TIMEZONE="America/Chicago"
 npm start
 ```
 
-If not set, the app still works and returns a friendly "not active" calendar status.
+Then in the app, click **Connect Google Calendar (OAuth)**.
+
+Fallback mode (legacy): you can still use API key mode by setting `GCAL_API_KEY`.
+
+If none are set, the app still works and returns a friendly "not active" calendar status.
 
 ## 6) Next Steps (v0.3)
 

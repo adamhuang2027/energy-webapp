@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import session from 'express-session';
+import { google } from 'googleapis';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,8 +12,13 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 8787;
+const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'energy-dev-secret';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${APP_BASE_URL}/api/v1/oauth/google/callback`;
 const GCAL_API_KEY = process.env.GCAL_API_KEY || '';
-const GCAL_CALENDAR_ID = process.env.GCAL_CALENDAR_ID || '';
+const GCAL_CALENDAR_ID = process.env.GCAL_CALENDAR_ID || 'primary';
 const GCAL_TIMEZONE = process.env.GCAL_TIMEZONE || 'America/Chicago';
 const db = new Database(path.join(__dirname, 'energy.db'));
 
@@ -71,6 +78,16 @@ function initDb() {
       suggestion_text TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      provider TEXT PRIMARY KEY,
+      access_token TEXT,
+      refresh_token TEXT,
+      scope TEXT,
+      token_type TEXT,
+      expiry_date INTEGER,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
@@ -79,6 +96,12 @@ initDb();
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function todayStr() {
@@ -116,20 +139,74 @@ function getSlotMeetingLoad(events = []) {
   return slotLoad;
 }
 
+function getOAuthClient() {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return null;
+  return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+}
+
+function loadSavedGoogleTokens() {
+  return db.prepare("SELECT * FROM oauth_tokens WHERE provider='google'").get();
+}
+
+function saveGoogleTokens(tokens = {}) {
+  db.prepare(`
+    INSERT INTO oauth_tokens (provider, access_token, refresh_token, scope, token_type, expiry_date, updated_at)
+    VALUES ('google', ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(provider) DO UPDATE SET
+      access_token=excluded.access_token,
+      refresh_token=COALESCE(excluded.refresh_token, oauth_tokens.refresh_token),
+      scope=excluded.scope,
+      token_type=excluded.token_type,
+      expiry_date=excluded.expiry_date,
+      updated_at=datetime('now')
+  `).run(tokens.access_token || null, tokens.refresh_token || null, tokens.scope || null, tokens.token_type || null, tokens.expiry_date || null);
+}
+
 async function fetchGoogleCalendarEvents(date) {
-  if (!GCAL_API_KEY || !GCAL_CALENDAR_ID) {
-    return { enabled: false, reason: 'Missing GCAL_API_KEY or GCAL_CALENDAR_ID', events: [] };
-  }
   const timeMin = `${date}T00:00:00Z`;
   const timeMax = `${date}T23:59:59Z`;
-  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_CALENDAR_ID)}/events?singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&key=${encodeURIComponent(GCAL_API_KEY)}&timeZone=${encodeURIComponent(GCAL_TIMEZONE)}`;
 
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    return { enabled: true, reason: `Google Calendar fetch failed: ${resp.status}`, events: [] };
+  // Priority 1: OAuth (private calendars)
+  const oauthClient = getOAuthClient();
+  const saved = loadSavedGoogleTokens();
+  if (oauthClient && saved?.access_token) {
+    oauthClient.setCredentials({
+      access_token: saved.access_token,
+      refresh_token: saved.refresh_token,
+      scope: saved.scope,
+      token_type: saved.token_type,
+      expiry_date: saved.expiry_date,
+    });
+    try {
+      const calendar = google.calendar({ version: 'v3', auth: oauthClient });
+      const result = await calendar.events.list({
+        calendarId: GCAL_CALENDAR_ID || 'primary',
+        singleEvents: true,
+        orderBy: 'startTime',
+        timeMin,
+        timeMax,
+        timeZone: GCAL_TIMEZONE,
+      });
+      const fresh = oauthClient.credentials;
+      if (fresh?.access_token) saveGoogleTokens(fresh);
+      return { enabled: true, authMode: 'oauth', reason: null, events: result.data.items || [] };
+    } catch (e) {
+      // fall through to api key if available
+    }
   }
-  const json = await resp.json();
-  return { enabled: true, reason: null, events: json.items || [] };
+
+  // Priority 2: API key mode
+  if (GCAL_API_KEY) {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_CALENDAR_ID || 'primary')}/events?singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&key=${encodeURIComponent(GCAL_API_KEY)}&timeZone=${encodeURIComponent(GCAL_TIMEZONE)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      return { enabled: true, authMode: 'apiKey', reason: `Google Calendar fetch failed: ${resp.status}`, events: [] };
+    }
+    const json = await resp.json();
+    return { enabled: true, authMode: 'apiKey', reason: null, events: json.items || [] };
+  }
+
+  return { enabled: false, authMode: 'none', reason: 'No Google auth configured. Use OAuth (recommended) or API key.', events: [] };
 }
 
 function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0, noon: 0, evening: 0 }) {
@@ -428,6 +505,57 @@ app.post('/api/v1/schedule/apply', (req, res) => {
 
   tx(recommendations);
   res.json({ data: { updated: recommendations.length }, error: null });
+});
+
+// --- OAuth (Google Calendar) ---
+app.get('/api/v1/oauth/google/start', (req, res) => {
+  const oauthClient = getOAuthClient();
+  if (!oauthClient) return res.status(400).json({ data: null, error: 'Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET' });
+  const state = Math.random().toString(36).slice(2);
+  req.session.oauthState = state;
+  const authUrl = oauthClient.generateAuthUrl({
+    access_type: 'offline',
+    scope: ['https://www.googleapis.com/auth/calendar.readonly'],
+    prompt: 'consent',
+    state,
+  });
+  res.redirect(authUrl);
+});
+
+app.get('/api/v1/oauth/google/callback', async (req, res) => {
+  const oauthClient = getOAuthClient();
+  if (!oauthClient) return res.status(400).send('OAuth not configured');
+  const { code, state } = req.query;
+  if (!code) return res.status(400).send('Missing code');
+  if (!state || state !== req.session.oauthState) return res.status(400).send('Invalid state');
+
+  try {
+    const { tokens } = await oauthClient.getToken(String(code));
+    saveGoogleTokens(tokens);
+    res.redirect('/?oauth=google_connected');
+  } catch (e) {
+    res.status(500).send('Google OAuth failed');
+  }
+});
+
+app.get('/api/v1/oauth/google/status', (_req, res) => {
+  const oauthReady = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
+  const saved = loadSavedGoogleTokens();
+  res.json({
+    data: {
+      oauthConfigured: oauthReady,
+      connected: Boolean(saved?.access_token),
+      redirectUri: GOOGLE_REDIRECT_URI,
+      calendarId: GCAL_CALENDAR_ID,
+      timezone: GCAL_TIMEZONE,
+    },
+    error: null,
+  });
+});
+
+app.post('/api/v1/oauth/google/logout', (_req, res) => {
+  db.prepare("DELETE FROM oauth_tokens WHERE provider='google'").run();
+  res.json({ data: { disconnected: true }, error: null });
 });
 
 // --- Review ---
