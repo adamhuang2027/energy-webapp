@@ -38,6 +38,11 @@ function initDb() {
       need_block INTEGER NOT NULL DEFAULT 0,
       importance TEXT NOT NULL DEFAULT 'normal' CHECK (importance IN ('mit','normal')),
       status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','doing','done')),
+      schedule_mode TEXT NOT NULL DEFAULT 'flexible' CHECK (schedule_mode IN ('fixed','flexible','windowed')),
+      fixed_start TEXT,
+      fixed_end TEXT,
+      window_start_hour INTEGER,
+      window_end_hour INTEGER,
       scheduled_start TEXT,
       scheduled_end TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -90,6 +95,16 @@ function initDb() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  const ensureColumn = (name, ddl) => {
+    const cols = db.prepare("PRAGMA table_info(tasks)").all();
+    if (!cols.find(c => c.name === name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${ddl}`);
+  };
+  ensureColumn('schedule_mode', "schedule_mode TEXT NOT NULL DEFAULT 'flexible'");
+  ensureColumn('fixed_start', 'fixed_start TEXT');
+  ensureColumn('fixed_end', 'fixed_end TEXT');
+  ensureColumn('window_start_hour', 'window_start_hour INTEGER');
+  ensureColumn('window_end_hour', 'window_end_hour INTEGER');
 }
 
 initDb();
@@ -235,6 +250,8 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
   const tasks = db
     .prepare("SELECT * FROM tasks WHERE status IN ('todo','doing') ORDER BY importance DESC, energy_demand DESC, created_at ASC")
     .all();
+  const fixedTasks = tasks.filter(t => t.schedule_mode === 'fixed' && t.fixed_start && t.fixed_end);
+  const flexibleTasks = tasks.filter(t => t.schedule_mode !== 'fixed');
 
   const checkins = getCheckinsMap(date);
   const baseCurve = {
@@ -253,10 +270,31 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
   ].map(w => ({ ...w, availableMin: Math.max(30, w.lengthMin - Math.min(w.lengthMin - 30, meetingLoad[w.slot] || 0)) }));
 
   const recommendations = [];
+
+  for (const task of fixedTasks) {
+    const s = new Date(task.fixed_start);
+    const e = new Date(task.fixed_end);
+    const duration = Math.max(1, Math.round((e.getTime() - s.getTime()) / 60000));
+    const slot = toSlotByHourUTC(s.getUTCHours());
+    const target = windows.find(w => w.slot === slot);
+    if (target) target.availableMin = Math.max(0, target.availableMin - duration);
+    recommendations.push({
+      taskId: task.id,
+      title: task.title,
+      slot,
+      start: task.fixed_start,
+      end: task.fixed_end,
+      duration,
+      matchScore: 1,
+      reason: 'fixed task (locked time)',
+      scheduleMode: 'fixed',
+    });
+  }
+
   let lastFocusType = null;
   let lastDevice = null;
 
-  for (const task of tasks) {
+  for (const task of flexibleTasks) {
     const idealDuration = task.estimated_minutes || (task.energy_demand >= 4 ? 90 : task.energy_demand <= 2 ? 30 : 50);
     const maxBlock = strategy === 'sprint' ? 120 : strategy === 'conservative' ? 60 : 90;
     const minBlock = task.energy_demand >= 4 ? 45 : 25;
@@ -266,6 +304,12 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
     for (const w of windows) {
       const remains = w.availableMin - w.cursorMin;
       if (remains < duration) continue;
+
+      if (task.schedule_mode === 'windowed' && task.window_start_hour != null && task.window_end_hour != null) {
+        const slotStartHourUtc = new Date(w.start).getUTCHours();
+        const slotEndHourUtc = new Date(w.end).getUTCHours();
+        if (slotEndHourUtc <= task.window_start_hour || slotStartHourUtc >= task.window_end_hour) continue;
+      }
 
       const energyFit = 1 - Math.abs(task.energy_demand - w.energy) / 4;
       const priority = task.importance === 'mit' ? 1 : 0.5;
@@ -286,7 +330,8 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
     const reasonBits = [
       `energy fit ${Math.round((1 - Math.abs(task.energy_demand - best.w.energy) / 4) * 100)}%`,
       best.switchPenalty > 0 ? 'switch cost applied' : 'low switch cost',
-      (meetingLoad[best.w.slot] || 0) > 0 ? `meeting load ${meetingLoad[best.w.slot]}m` : 'light meeting load'
+      (meetingLoad[best.w.slot] || 0) > 0 ? `meeting load ${meetingLoad[best.w.slot]}m` : 'light meeting load',
+      `mode ${task.schedule_mode}`,
     ];
 
     recommendations.push({
@@ -298,14 +343,13 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
       duration,
       matchScore: Number(best.score.toFixed(2)),
       reason: reasonBits.join(' · '),
+      scheduleMode: task.schedule_mode,
     });
 
     lastFocusType = task.focus_type;
     lastDevice = task.context_device || lastDevice;
 
-    if (best.w.cursorMin >= 90) {
-      best.w.cursorMin += 10; // insert a recovery block
-    }
+    if (best.w.cursorMin >= 90) best.w.cursorMin += 10;
   }
 
   return {
@@ -375,7 +419,19 @@ app.get('/api/v1/tasks', (req, res) => {
 });
 
 app.post('/api/v1/tasks', (req, res) => {
-  const { title, estimatedMinutes, energyDemand, focusType = 'deep', context = {}, importance = 'normal' } = req.body;
+  const {
+    title,
+    estimatedMinutes,
+    energyDemand,
+    focusType = 'deep',
+    context = {},
+    importance = 'normal',
+    scheduleMode = 'flexible',
+    fixedStart = null,
+    fixedEnd = null,
+    windowStartHour = null,
+    windowEndHour = null,
+  } = req.body;
   if (!title || !energyDemand) return res.status(400).json({ error: 'title and energyDemand are required' });
 
   if (importance === 'mit') {
@@ -384,8 +440,8 @@ app.post('/api/v1/tasks', (req, res) => {
   }
 
   const stmt = db.prepare(`
-    INSERT INTO tasks (title, estimated_minutes, energy_demand, focus_type, context_location, context_device, need_block, importance)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (title, estimated_minutes, energy_demand, focus_type, context_location, context_device, need_block, importance, schedule_mode, fixed_start, fixed_end, window_start_hour, window_end_hour)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const info = stmt.run(
     title,
@@ -395,7 +451,12 @@ app.post('/api/v1/tasks', (req, res) => {
     context.location ?? null,
     context.device ?? null,
     context.needBlock ? 1 : 0,
-    importance
+    importance,
+    scheduleMode,
+    fixedStart,
+    fixedEnd,
+    windowStartHour,
+    windowEndHour
   );
   const created = db.prepare('SELECT * FROM tasks WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ data: created, error: null });
@@ -414,6 +475,11 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
     focus_type: req.body.focusType ?? existing.focus_type,
     importance: req.body.importance ?? existing.importance,
     status: req.body.status ?? existing.status,
+    schedule_mode: req.body.scheduleMode ?? existing.schedule_mode,
+    fixed_start: req.body.fixedStart ?? existing.fixed_start,
+    fixed_end: req.body.fixedEnd ?? existing.fixed_end,
+    window_start_hour: req.body.windowStartHour ?? existing.window_start_hour,
+    window_end_hour: req.body.windowEndHour ?? existing.window_end_hour,
     scheduled_start: req.body.scheduledStart ?? existing.scheduled_start,
     scheduled_end: req.body.scheduledEnd ?? existing.scheduled_end,
     updated_at: new Date().toISOString(),
@@ -421,7 +487,7 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
 
   db.prepare(`
     UPDATE tasks
-    SET title=?, estimated_minutes=?, energy_demand=?, focus_type=?, importance=?, status=?, scheduled_start=?, scheduled_end=?, updated_at=?
+    SET title=?, estimated_minutes=?, energy_demand=?, focus_type=?, importance=?, status=?, schedule_mode=?, fixed_start=?, fixed_end=?, window_start_hour=?, window_end_hour=?, scheduled_start=?, scheduled_end=?, updated_at=?
     WHERE id=?
   `).run(
     merged.title,
@@ -430,6 +496,11 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
     merged.focus_type,
     merged.importance,
     merged.status,
+    merged.schedule_mode,
+    merged.fixed_start,
+    merged.fixed_end,
+    merged.window_start_hour,
+    merged.window_end_hour,
     merged.scheduled_start,
     merged.scheduled_end,
     merged.updated_at,

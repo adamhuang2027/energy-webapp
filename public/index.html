@@ -41,6 +41,17 @@
               <option value="normal">normal</option>
               <option value="mit">MIT</option>
             </select>
+            <select id="scheduleMode">
+              <option value="flexible">flexible</option>
+              <option value="fixed">fixed</option>
+              <option value="windowed">windowed</option>
+            </select>
+          </div>
+          <div class="row">
+            <input id="fixedStart" type="datetime-local" placeholder="Fixed start" />
+            <input id="fixedEnd" type="datetime-local" placeholder="Fixed end" />
+            <input id="windowStartHour" type="number" min="0" max="23" placeholder="Window start hour (0-23)" />
+            <input id="windowEndHour" type="number" min="1" max="24" placeholder="Window end hour (1-24)" />
           </div>
           <button type="submit">Add Task</button>
         </form>

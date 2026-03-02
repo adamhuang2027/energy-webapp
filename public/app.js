@@ -78,7 +78,9 @@ async function renderTasks() {
       <span class="badge">${t.focus_type}</span>
       <span class="badge">${t.importance}</span>
       <span class="badge">${t.status}</span>
+      <span class="badge">${t.schedule_mode || 'flexible'}</span>
       <div>scheduled: ${t.scheduled_start || '-'} ~ ${t.scheduled_end || '-'}</div>
+      <div>fixed: ${t.fixed_start || '-'} ~ ${t.fixed_end || '-'} | window: ${t.window_start_hour ?? '-'} - ${t.window_end_hour ?? '-'}</div>
       <div class="row" style="margin-top:6px">
         <label style="font-size:12px;color:#94a3b8">Energy Demand</label>
         <select id="energy-${t.id}">
@@ -94,6 +96,14 @@ async function renderTasks() {
           <option value="shallow" ${t.focus_type === 'shallow' ? 'selected' : ''}>shallow</option>
           <option value="social" ${t.focus_type === 'social' ? 'selected' : ''}>social</option>
         </select>
+        <label style="font-size:12px;color:#94a3b8">Mode</label>
+        <select id="mode-${t.id}">
+          <option value="flexible" ${(t.schedule_mode || 'flexible') === 'flexible' ? 'selected' : ''}>flexible</option>
+          <option value="fixed" ${t.schedule_mode === 'fixed' ? 'selected' : ''}>fixed</option>
+          <option value="windowed" ${t.schedule_mode === 'windowed' ? 'selected' : ''}>windowed</option>
+        </select>
+        <input id="wstart-${t.id}" type="number" min="0" max="23" value="${t.window_start_hour ?? ''}" placeholder="win start" style="width:90px" />
+        <input id="wend-${t.id}" type="number" min="1" max="24" value="${t.window_end_hour ?? ''}" placeholder="win end" style="width:90px" />
         <button data-id="${t.id}" data-action="save-task-meta">Save</button>
         <button data-id="${t.id}" data-done="1">Mark Done</button>
       </div>
@@ -101,7 +111,12 @@ async function renderTasks() {
     div.querySelector('[data-action="save-task-meta"]').addEventListener('click', async () => {
       const energyDemand = Number(div.querySelector(`#energy-${t.id}`).value);
       const focusType = div.querySelector(`#focus-${t.id}`).value;
-      const resp = await api.patchTask(t.id, { energyDemand, focusType });
+      const scheduleMode = div.querySelector(`#mode-${t.id}`).value;
+      const windowStartHourRaw = div.querySelector(`#wstart-${t.id}`).value;
+      const windowEndHourRaw = div.querySelector(`#wend-${t.id}`).value;
+      const windowStartHour = windowStartHourRaw === '' ? null : Number(windowStartHourRaw);
+      const windowEndHour = windowEndHourRaw === '' ? null : Number(windowEndHourRaw);
+      const resp = await api.patchTask(t.id, { energyDemand, focusType, scheduleMode, windowStartHour, windowEndHour });
       if (resp.error) return alert(resp.error);
       await refreshAll();
     });
@@ -258,12 +273,20 @@ async function renderGoogleStatus() {
 
 qs('taskForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const mode = qs('scheduleMode').value;
+  const fixedStartVal = qs('fixedStart').value;
+  const fixedEndVal = qs('fixedEnd').value;
   const body = {
     title: qs('title').value,
     estimatedMinutes: qs('estimatedMinutes').value ? Number(qs('estimatedMinutes').value) : undefined,
     energyDemand: Number(qs('energyDemand').value),
     focusType: qs('focusType').value,
     importance: qs('importance').value,
+    scheduleMode: mode,
+    fixedStart: fixedStartVal ? new Date(fixedStartVal).toISOString() : null,
+    fixedEnd: fixedEndVal ? new Date(fixedEndVal).toISOString() : null,
+    windowStartHour: qs('windowStartHour').value ? Number(qs('windowStartHour').value) : null,
+    windowEndHour: qs('windowEndHour').value ? Number(qs('windowEndHour').value) : null,
   };
   const res = await api.createTask(body);
   if (res.error) return alert(res.error);
