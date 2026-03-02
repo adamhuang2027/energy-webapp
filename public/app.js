@@ -21,6 +21,7 @@ const today = new Date().toISOString().slice(0,10);
 let latestRecommendations = [];
 let latestCalendar = null;
 let runningSessionId = null;
+let autoRegenerate = localStorage.getItem('autoRegenerate') !== 'false';
 
 const SLOT_CONFIG = {
   morning: { suggested: '09:00 CT', window: '07:00–11:00 CT' },
@@ -311,6 +312,12 @@ qs('taskForm').addEventListener('submit', async (e) => {
   await refreshAll();
 });
 
+qs('autoRegenerateToggle').checked = autoRegenerate;
+qs('autoRegenerateToggle').addEventListener('change', (e) => {
+  autoRegenerate = e.target.checked;
+  localStorage.setItem('autoRegenerate', String(autoRegenerate));
+});
+
 qs('btnConnectGoogle').addEventListener('click', () => {
   window.location.href = '/api/v1/oauth/google/start';
 });
@@ -364,11 +371,11 @@ qs('btnRefreshReview').addEventListener('click', async () => {
   await renderWeeklyTrends();
 });
 
-async function refreshAll() {
+async function refreshAll({ regenerate = autoRegenerate } = {}) {
   await renderGoogleStatus();
   await renderTasks();
   await renderCheckins();
-  await refreshSchedulePreview();
+  if (regenerate) await refreshSchedulePreview();
   await renderSessions();
   await renderReview();
   await renderWeeklyTrends();
