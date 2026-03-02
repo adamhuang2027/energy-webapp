@@ -123,9 +123,30 @@ function slotEnergyLevel(value) {
 }
 
 function toSlotByHourUTC(hour) {
-  if (hour >= 9 && hour < 12) return 'morning';
-  if (hour >= 13 && hour < 18) return 'noon';
-  return 'evening';
+  if (hour >= 15 && hour < 18) return 'morning'; // ~09:00-12:00 CT
+  if (hour >= 19 && hour < 24) return 'noon';   // ~13:00-18:00 CT
+  return 'evening';                              // ~19:00-23:00 CT
+}
+
+function zonedTimeToUtcIso(date, hour, minute, timeZone = GCAL_TIMEZONE) {
+  const [y, m, d] = date.split('-').map(Number);
+  const targetUtc = Date.UTC(y, m - 1, d, hour, minute, 0);
+  let utcMs = targetUtc;
+
+  for (let i = 0; i < 3; i++) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(utcMs));
+    const map = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+    const asUtc = Date.UTC(Number(map.year), Number(map.month) - 1, Number(map.day), Number(map.hour), Number(map.minute), Number(map.second));
+    const diff = asUtc - targetUtc;
+    utcMs -= diff;
+  }
+
+  return new Date(utcMs).toISOString();
 }
 
 function getSlotMeetingLoad(events = []) {
@@ -226,9 +247,9 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
   if (strategy === 'conservative') baseCurve.evening = Math.max(1, baseCurve.evening - 1);
 
   const windows = [
-    { slot: 'morning', start: `${date}T09:00:00Z`, end: `${date}T12:00:00Z`, energy: baseCurve.morning, cursorMin: 0, lengthMin: 180 },
-    { slot: 'noon', start: `${date}T13:30:00Z`, end: `${date}T17:30:00Z`, energy: baseCurve.noon, cursorMin: 0, lengthMin: 240 },
-    { slot: 'evening', start: `${date}T20:00:00Z`, end: `${date}T22:00:00Z`, energy: baseCurve.evening, cursorMin: 0, lengthMin: 120 },
+    { slot: 'morning', start: zonedTimeToUtcIso(date, 9, 0), end: zonedTimeToUtcIso(date, 12, 0), energy: baseCurve.morning, cursorMin: 0, lengthMin: 180 },
+    { slot: 'noon', start: zonedTimeToUtcIso(date, 13, 30), end: zonedTimeToUtcIso(date, 18, 0), energy: baseCurve.noon, cursorMin: 0, lengthMin: 270 },
+    { slot: 'evening', start: zonedTimeToUtcIso(date, 19, 0), end: zonedTimeToUtcIso(date, 23, 0), energy: baseCurve.evening, cursorMin: 0, lengthMin: 240 },
   ].map(w => ({ ...w, availableMin: Math.max(30, w.lengthMin - Math.min(w.lengthMin - 30, meetingLoad[w.slot] || 0)) }));
 
   const recommendations = [];

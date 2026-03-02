@@ -30,6 +30,15 @@ const SLOT_CONFIG = {
 
 function qs(id){ return document.getElementById(id); }
 
+function formatTimeCT(iso) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: CT_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(iso));
+}
+
 function getCurrentSlotCT() {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: CT_TZ,
@@ -154,7 +163,7 @@ async function refreshSchedulePreview() {
   qs('recommendations').innerHTML = latestRecommendations.map(r => `
     <div class="rec-item">
       <b>${r.title}</b> → ${r.slot}
-      <div>Time: ${new Date(r.start).toLocaleTimeString()} - ${new Date(r.end).toLocaleTimeString()}</div>
+      <div>Time (CT): ${formatTimeCT(r.start)} - ${formatTimeCT(r.end)}</div>
       <div>Duration: ${r.duration || '-'} mins · Match Score: ${r.matchScore}</div>
       <div>${r.reason}</div>
     </div>
