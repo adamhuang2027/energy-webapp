@@ -1,0 +1,21 @@
+* { box-sizing: border-box; font-family: Inter, system-ui, sans-serif; }
+body { margin: 0; background: #0f172a; color: #e2e8f0; }
+header { padding: 20px; border-bottom: 1px solid #1e293b; }
+h1 { margin: 0; }
+.tabs { display: flex; gap: 8px; padding: 12px 20px; }
+.tab { padding: 8px 12px; border: 1px solid #334155; background: #1e293b; color: #cbd5e1; border-radius: 8px; cursor: pointer; }
+.tab.active { background: #3b82f6; color: #fff; }
+main { padding: 20px; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card { background: #111827; border: 1px solid #334155; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+input, select, button { padding: 8px; border-radius: 8px; border: 1px solid #475569; background: #0b1220; color: #e2e8f0; }
+button { cursor: pointer; background: #2563eb; border-color: #2563eb; }
+button:hover { filter: brightness(1.1); }
+.task-item, .session-item, .rec-item { border: 1px solid #334155; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 6px; font-size: 12px; margin-left: 6px; }
+.high { background: #14532d; }
+.mid { background: #854d0e; }
+.low { background: #7f1d1d; }
+.windows { display: flex; gap: 8px; margin: 8px 0; }

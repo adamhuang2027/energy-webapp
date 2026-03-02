@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EnerFlow v0.1</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>EnerFlow v0.1</h1>
+      <p>把任务放到你最可能完成的能量窗口</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="plan">Plan</button>
+      <button class="tab" data-tab="now">Now</button>
+      <button class="tab" data-tab="review">Review</button>
+    </nav>
+
+    <main>
+      <section id="plan" class="panel active">
+        <h2>晨间计划（1分钟）</h2>
+        <form id="taskForm" class="card">
+          <input id="title" placeholder="任务标题" required />
+          <div class="row">
+            <input id="estimatedMinutes" type="number" min="5" step="5" placeholder="预估时长(分钟,可选)" />
+            <select id="energyDemand">
+              <option value="3">能量需求 3</option>
+              <option value="1">能量需求 1</option>
+              <option value="2">能量需求 2</option>
+              <option value="4">能量需求 4</option>
+              <option value="5">能量需求 5</option>
+            </select>
+            <select id="focusType">
+              <option value="deep">deep</option>
+              <option value="shallow">shallow</option>
+              <option value="social">social</option>
+            </select>
+            <select id="importance">
+              <option value="normal">normal</option>
+              <option value="mit">MIT</option>
+            </select>
+          </div>
+          <button type="submit">添加任务</button>
+        </form>
+
+        <div class="card">
+          <h3>精力打分（morning / noon / evening）</h3>
+          <div id="checkinContainer"></div>
+        </div>
+
+        <div class="card">
+          <h3>自动排程</h3>
+          <div class="row">
+            <select id="strategy">
+              <option value="steady">steady</option>
+              <option value="sprint">sprint</option>
+              <option value="conservative">conservative</option>
+            </select>
+            <button id="btnGenerate">生成排程</button>
+            <button id="btnApply">应用排程</button>
+          </div>
+          <div id="windows" class="windows"></div>
+          <div id="recommendations"></div>
+        </div>
+
+        <div class="card">
+          <h3>任务列表</h3>
+          <div id="taskList"></div>
+        </div>
+      </section>
+
+      <section id="now" class="panel">
+        <h2>执行（Now）</h2>
+        <div class="card">
+          <div id="runningInfo">当前无运行中的任务</div>
+          <div class="row">
+            <select id="startTaskSelect"></select>
+            <button id="btnStart">开始任务</button>
+          </div>
+          <div class="row">
+            <select id="energyCost">
+              <option value="3">实际能耗 3</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+            <input id="reasonTags" placeholder="原因标签(逗号分隔) 如 distraction,sleep_low" />
+            <button id="btnEnd">结束任务</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>今日 Sessions</h3>
+          <div id="sessionList"></div>
+        </div>
+      </section>
+
+      <section id="review" class="panel">
+        <h2>晚间复盘（1分钟）</h2>
+        <div class="card" id="reviewCard"></div>
+        <button id="btnRefreshReview">刷新复盘</button>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

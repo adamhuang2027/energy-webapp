@@ -1,0 +1,5 @@
+node_modules/
+energy.db-shm
+energy.db-wal
+.env
+.DS_Store
