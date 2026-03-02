@@ -283,18 +283,33 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
   const recommendations = [];
 
   for (const task of fixedTasks) {
-    const s = new Date(task.fixed_start);
-    const e = new Date(task.fixed_end);
+    const fixedStart = new Date(task.fixed_start);
+    const fixedEnd = new Date(task.fixed_end);
+    const sHM = getHourMinuteInTimezone(fixedStart, GCAL_TIMEZONE);
+    const eHM = getHourMinuteInTimezone(fixedEnd, GCAL_TIMEZONE);
+
+    let startIso = zonedTimeToUtcIso(date, sHM.hour, sHM.minute);
+    let endIso = zonedTimeToUtcIso(date, eHM.hour, eHM.minute);
+
+    let s = new Date(startIso);
+    let e = new Date(endIso);
+    if (e <= s) {
+      const fallbackMin = task.estimated_minutes || 60;
+      e = new Date(s.getTime() + fallbackMin * 60000);
+      endIso = e.toISOString();
+    }
+
     const duration = Math.max(1, Math.round((e.getTime() - s.getTime()) / 60000));
     const slot = toSlotByHourUTC(s.getUTCHours());
     const target = windows.find(w => w.slot === slot);
     if (target) target.availableMin = Math.max(0, target.availableMin - duration);
+
     recommendations.push({
       taskId: task.id,
       title: task.title,
       slot,
-      start: task.fixed_start,
-      end: task.fixed_end,
+      start: startIso,
+      end: endIso,
       duration,
       matchScore: 1,
       reason: 'fixed task (locked time)',
