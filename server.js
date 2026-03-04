@@ -120,8 +120,28 @@ app.use(session({
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+function getDateStrInTimezone(date = new Date(), timeZone = GCAL_TIMEZONE) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return getDateStrInTimezone(new Date(), GCAL_TIMEZONE);
+}
+
+function getDayUtcRange(date, timeZone = GCAL_TIMEZONE) {
+  const start = zonedTimeToUtcIso(date, 0, 0, timeZone);
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  const nextDate = d.toISOString().slice(0, 10);
+  const end = zonedTimeToUtcIso(nextDate, 0, 0, timeZone);
+  return { start, end };
 }
 
 function getCheckinsMap(date) {
@@ -137,10 +157,16 @@ function slotEnergyLevel(value) {
   return 'mid';
 }
 
-function toSlotByHourUTC(hour) {
-  if (hour >= 15 && hour < 18) return 'morning'; // ~09:00-12:00 CT
-  if (hour >= 19 && hour < 24) return 'noon';   // ~13:00-18:00 CT
-  return 'evening';                              // ~19:00-23:00 CT
+function toSlotByHourLocal(hour) {
+  if (hour >= 7 && hour < 11) return 'morning';
+  if (hour >= 11 && hour < 17) return 'noon';
+  return 'evening';
+}
+
+function toSlotByDateTime(isoOrDate, timeZone = GCAL_TIMEZONE) {
+  const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  const { hour } = getHourMinuteInTimezone(d, timeZone);
+  return toSlotByHourLocal(hour);
 }
 
 function zonedTimeToUtcIso(date, hour, minute, timeZone = GCAL_TIMEZONE) {
@@ -181,7 +207,7 @@ function getSlotMeetingLoad(events = []) {
     const start = new Date(e.start.dateTime || e.start.date);
     const end = new Date(e.end.dateTime || e.end.date);
     const durationMin = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-    const slot = toSlotByHourUTC(start.getUTCHours());
+    const slot = toSlotByDateTime(start, GCAL_TIMEZONE);
     slotLoad[slot] += durationMin;
   }
   return slotLoad;
@@ -211,8 +237,7 @@ function saveGoogleTokens(tokens = {}) {
 }
 
 async function fetchGoogleCalendarEvents(date) {
-  const timeMin = `${date}T00:00:00Z`;
-  const timeMax = `${date}T23:59:59Z`;
+  const { start: timeMin, end: timeMax } = getDayUtcRange(date, GCAL_TIMEZONE);
 
   // Priority 1: OAuth (private calendars)
   const oauthClient = getOAuthClient();
@@ -300,7 +325,7 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
     }
 
     const duration = Math.max(1, Math.round((e.getTime() - s.getTime()) / 60000));
-    const slot = toSlotByHourUTC(s.getUTCHours());
+    const slot = toSlotByDateTime(s, GCAL_TIMEZONE);
     const target = windows.find(w => w.slot === slot);
     if (target) target.availableMin = Math.max(0, target.availableMin - duration);
 
@@ -410,7 +435,8 @@ function generateSchedule(date, strategy = 'steady', meetingLoad = { morning: 0,
 
 function computeDailyReview(date) {
   const tasks = db.prepare("SELECT * FROM tasks").all();
-  const sessions = db.prepare('SELECT * FROM sessions WHERE date(start_at) = ?').all(date);
+  const { start, end } = getDayUtcRange(date, GCAL_TIMEZONE);
+  const sessions = db.prepare('SELECT * FROM sessions WHERE start_at >= ? AND start_at < ?').all(start, end);
   const checkins = getCheckinsMap(date);
 
   let totalWeight = 0;
@@ -425,11 +451,7 @@ function computeDailyReview(date) {
 
   let mismatchCount = 0;
   for (const s of sessions) {
-    const hour = new Date(s.start_at).getUTCHours();
-    let slot = 'evening';
-    if (hour >= 9 && hour < 12) slot = 'morning';
-    else if (hour >= 13 && hour < 18) slot = 'noon';
-
+    const slot = toSlotByDateTime(s.start_at, GCAL_TIMEZONE);
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(s.task_id);
     const slotEnergy = checkins[slot]?.energy ?? (slot === 'morning' ? 4 : slot === 'noon' ? 3 : 2);
     if (task && task.energy_demand >= 4 && slotEnergy <= 2) mismatchCount += 1;
@@ -615,7 +637,8 @@ app.post('/api/v1/sessions/:id/end', (req, res) => {
 
 app.get('/api/v1/sessions', (req, res) => {
   const date = req.query.date || todayStr();
-  const rows = db.prepare('SELECT * FROM sessions WHERE date(start_at)=? ORDER BY start_at DESC').all(date);
+  const { start, end } = getDayUtcRange(date, GCAL_TIMEZONE);
+  const rows = db.prepare('SELECT * FROM sessions WHERE start_at >= ? AND start_at < ? ORDER BY start_at DESC').all(start, end);
   res.json({ data: rows, error: null });
 });
 
@@ -743,7 +766,8 @@ app.get('/api/v1/insights/weekly', (req, res) => {
     d.setUTCDate(d.getUTCDate() - i);
     const date = d.toISOString().slice(0, 10);
 
-    const sessions = db.prepare('SELECT * FROM sessions WHERE date(start_at)=?').all(date);
+    const { start, end } = getDayUtcRange(date, GCAL_TIMEZONE);
+    const sessions = db.prepare('SELECT * FROM sessions WHERE start_at >= ? AND start_at < ?').all(start, end);
     const checkins = getCheckinsMap(date);
     let mismatchCount = 0;
     let highEnergyDone = 0;
@@ -752,7 +776,7 @@ app.get('/api/v1/insights/weekly', (req, res) => {
     for (const s of sessions) {
       const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(s.task_id);
       if (!task) continue;
-      const slot = toSlotByHourUTC(new Date(s.start_at).getUTCHours());
+      const slot = toSlotByDateTime(s.start_at, GCAL_TIMEZONE);
       const slotEnergy = checkins[slot]?.energy ?? (slot === 'morning' ? 4 : slot === 'noon' ? 3 : 2);
       if (task.energy_demand >= 4) {
         highEnergyTotal += 1;

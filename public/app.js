@@ -17,7 +17,12 @@ const api = {
 };
 
 const CT_TZ = 'America/Chicago';
-const today = new Date().toISOString().slice(0,10);
+const today = new Intl.DateTimeFormat('en-CA', {
+  timeZone: CT_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date());
 let latestRecommendations = [];
 let latestCalendar = null;
 let runningSessionId = null;
