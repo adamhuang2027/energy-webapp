@@ -9,7 +9,17 @@ const api = {
   startSession: (body) => fetch('/api/v1/sessions/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   endSession: (id, body) => fetch(`/api/v1/sessions/${id}/end`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   getSessions: (date) => fetch(`/api/v1/sessions?date=${date}`).then(r => r.json()),
-  getRunningSession: () => fetch('/api/v1/sessions/running').then(r => r.json()),
+  getRunningSession: async () => {
+    try {
+      const r = await fetch('/api/v1/sessions/running');
+      if (!r.ok) return { data: null, error: `HTTP_${r.status}` };
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) return { data: null, error: 'NON_JSON' };
+      return await r.json();
+    } catch {
+      return { data: null, error: 'NETWORK' };
+    }
+  },
   getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json()),
   getMeetingDensity: (date) => fetch(`/api/v1/calendar/meeting-density?date=${date}`).then(r => r.json()),
   getWeeklyInsights: (endDate) => fetch(`/api/v1/insights/weekly?endDate=${endDate}`).then(r => r.json()),
@@ -30,7 +40,9 @@ function dateStrInTimezone(date = new Date(), timeZone = CT_TZ) {
   return `${map.year}-${map.month}-${map.day}`;
 }
 
-const today = dateStrInTimezone(new Date(), CT_TZ);
+function getTodayCT() {
+  return dateStrInTimezone(new Date(), CT_TZ);
+}
 let latestRecommendations = [];
 let latestCalendar = null;
 let runningSessionId = null;
@@ -195,7 +207,7 @@ async function renderTasks() {
 }
 
 async function renderCheckins() {
-  const res = await api.getCheckins(today);
+  const res = await api.getCheckins(getTodayCT());
   const rows = res.data || [];
   const map = Object.fromEntries(rows.map(r => [r.slot, r]));
   const container = qs('checkinContainer');
@@ -224,7 +236,7 @@ async function renderCheckins() {
     container.appendChild(div);
     div.querySelector(`#save-${slot}`).addEventListener('click', async () => {
       await api.upsertCheckin({
-        date: today,
+        date: getTodayCT(),
         slot,
         energy: Number(div.querySelector(`#${slot}-energy`).value),
         focus: Number(div.querySelector(`#${slot}-focus`).value),
@@ -242,7 +254,7 @@ async function renderCheckins() {
 
 async function refreshSchedulePreview() {
   const strategy = qs('strategy').value;
-  const res = await api.generateSchedule({ date: today, strategy, includeCalendar: true });
+  const res = await api.generateSchedule({ date: getTodayCT(), strategy, includeCalendar: true });
   const data = res.data || { windows: [], recommendations: [], calendar: null };
   latestRecommendations = data.recommendations || [];
   latestCalendar = data.calendar || null;
@@ -269,7 +281,7 @@ async function refreshSchedulePreview() {
 }
 
 async function renderSessions() {
-  const res = await api.getSessions(today);
+  const res = await api.getSessions(getTodayCT());
   const list = res.data || [];
   const container = qs('sessionList');
   container.innerHTML = '';
@@ -301,7 +313,7 @@ async function renderSessions() {
 }
 
 async function renderReview() {
-  const res = await api.getReview(today);
+  const res = await api.getReview(getTodayCT());
   const d = res.data;
   qs('reviewCard').innerHTML = `
     <div>Date: ${d.review_date}</div>
@@ -313,7 +325,7 @@ async function renderReview() {
 }
 
 async function renderWeeklyTrends() {
-  const res = await api.getWeeklyInsights(today);
+  const res = await api.getWeeklyInsights(getTodayCT());
   const rows = res.data || [];
   const el = qs('weeklyTrends');
   el.innerHTML = rows.map(r => {
@@ -378,7 +390,7 @@ qs('btnDisconnectGoogle').addEventListener('click', async () => {
 });
 
 qs('btnLoadCalendar').addEventListener('click', async () => {
-  const res = await api.getMeetingDensity(today);
+  const res = await api.getMeetingDensity(getTodayCT());
   const d = res.data;
   qs('meetingDensity').textContent = d.enabled
     ? `Google Calendar loaded (${d.timezone}): ${d.meetings} meetings, total ${d.totalMinutes} mins, density ${d.densityLevel}.`
@@ -388,7 +400,7 @@ qs('btnLoadCalendar').addEventListener('click', async () => {
 qs('btnGenerate').addEventListener('click', refreshSchedulePreview);
 qs('btnApply').addEventListener('click', async () => {
   if (!latestRecommendations.length) return alert('Generate a schedule first');
-  await api.applySchedule({ date: today, recommendations: latestRecommendations.map(r => ({ taskId: r.taskId, start: r.start, end: r.end })) });
+  await api.applySchedule({ date: getTodayCT(), recommendations: latestRecommendations.map(r => ({ taskId: r.taskId, start: r.start, end: r.end })) });
   await refreshAll();
   alert('Schedule applied');
 });
