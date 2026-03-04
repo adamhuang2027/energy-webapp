@@ -22,6 +22,8 @@
       <section id="plan" class="panel active">
         <h2>Morning Plan (1 min)</h2>
         <form id="taskForm" class="card">
+          <h3>Create Task</h3>
+          <p class="muted">Add one task at a time with clear energy demand and scheduling mode.</p>
           <input id="title" placeholder="Task title" required />
           <div class="row">
             <input id="estimatedMinutes" type="number" min="5" step="5" placeholder="Estimated minutes (optional)" />
@@ -58,12 +60,14 @@
 
         <div class="card">
           <h3>Energy Check-ins (morning / noon / evening)</h3>
+          <p class="muted">Track energy, focus, and mood in under 30 seconds per slot.</p>
           <div id="checkinHint" style="margin-bottom:8px;color:#93c5fd"></div>
           <div id="checkinContainer"></div>
         </div>
 
         <div class="card">
           <h3>Auto Scheduling</h3>
+          <p class="muted">Generate a realistic plan based on energy windows and meeting load.</p>
           <div class="row">
             <select id="strategy">
               <option value="steady">steady</option>
