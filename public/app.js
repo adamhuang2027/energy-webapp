@@ -17,12 +17,19 @@ const api = {
 };
 
 const CT_TZ = 'America/Chicago';
-const today = new Intl.DateTimeFormat('en-CA', {
-  timeZone: CT_TZ,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-}).format(new Date());
+
+function dateStrInTimezone(date = new Date(), timeZone = CT_TZ) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+const today = dateStrInTimezone(new Date(), CT_TZ);
 let latestRecommendations = [];
 let latestCalendar = null;
 let runningSessionId = null;
