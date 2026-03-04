@@ -143,6 +143,26 @@ button {
 
 button:hover { filter: brightness(1.06); }
 
+button.secondary {
+  background: #1a2740;
+  border: 1px solid #39517a;
+  color: #d8e6fb;
+}
+
+button.success {
+  background: linear-gradient(180deg, #34d27a, #16a34a);
+}
+
+button.danger {
+  background: linear-gradient(180deg, #f87171, #dc2626);
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid #39517a;
+  color: #c7d6ef;
+}
+
 .task-item, .session-item, .rec-item {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -185,6 +205,37 @@ button:hover { filter: brightness(1.06); }
 }
 
 #fixedStart, #fixedEnd { min-width: 220px; }
+
+#plan .card, #now .card, #review .card {
+  margin-top: var(--space-3);
+}
+
+#recommendations:empty::before,
+#taskList:empty::before,
+#sessionList:empty::before,
+#weeklyTrends:empty::before {
+  content: "No data yet";
+  color: var(--text-dim);
+  display: block;
+  padding: var(--space-2) 0;
+}
+
+#btnConnectGoogle,
+#btnDisconnectGoogle,
+#btnLoadCalendar {
+  background: #1a2740;
+  border: 1px solid #3d5682;
+}
+
+#btnApply,
+#btnStart,
+#btnRefreshReview {
+  background: linear-gradient(180deg, #34d27a, #16a34a);
+}
+
+#btnEnd {
+  background: linear-gradient(180deg, #f97373, #dc2626);
+}
 
 @media (max-width: 760px) {
   main { padding-top: var(--space-4); }
