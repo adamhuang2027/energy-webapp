@@ -24,12 +24,12 @@
         <form id="taskForm" class="card">
           <h3>Create Task</h3>
           <p class="muted">Add one task at a time with clear energy demand and scheduling mode.</p>
-          <input id="title" placeholder="Task title" required />
+          <input id="title" placeholder="Enter task title" required />
 
           <div class="task-form-section">
             <h4>1) Basic Task Info</h4>
             <div class="row">
-              <input id="estimatedMinutes" type="number" min="5" step="5" placeholder="Estimated minutes (optional)" />
+              <input id="estimatedMinutes" type="number" min="5" step="5" placeholder="Enter estimated minutes (optional)" />
               <select id="energyDemand">
                 <option value="3">Energy Demand 3</option>
                 <option value="1">Energy Demand 1</option>
@@ -95,16 +95,16 @@
             <div class="control-group">
               <span class="group-title">Google Calendar</span>
               <div class="row">
-                <button id="btnConnectGoogle">Connect Google Calendar (OAuth)</button>
-                <button id="btnDisconnectGoogle">Disconnect Google</button>
-                <button id="btnLoadCalendar">Load Google Calendar Meeting Density</button>
+                <button id="btnConnectGoogle">Connect Google Calendar</button>
+                <button id="btnDisconnectGoogle">Disconnect Google Calendar</button>
+                <button id="btnLoadCalendar">Fetch Meeting Density</button>
               </div>
             </div>
             <div class="control-group">
               <span class="group-title">Schedule Actions</span>
               <div class="row">
-                <button id="btnGenerate">Generate Schedule</button>
-                <button id="btnApply">Apply Schedule</button>
+                <button id="btnGenerate">Generate Plan</button>
+                <button id="btnApply">Apply Plan</button>
               </div>
             </div>
           </div>
@@ -128,7 +128,7 @@
           <div id="runningInfo" class="running-info">No running task right now</div>
           <div class="row">
             <select id="startTaskSelect"></select>
-            <button id="btnStart">Start Task</button>
+            <button id="btnStart">Start Session</button>
           </div>
           <div class="row">
             <select id="energyCost">
@@ -138,8 +138,8 @@
               <option value="4">4</option>
               <option value="5">5</option>
             </select>
-            <input id="reasonTags" placeholder="Reason tags (comma-separated), e.g. distraction,sleep_low" />
-            <button id="btnEnd">End Task</button>
+            <input id="reasonTags" placeholder="Enter reason tags (comma-separated), e.g. distraction,sleep_low" />
+            <button id="btnEnd">End Session</button>
           </div>
         </div>
 
