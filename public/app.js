@@ -246,13 +246,16 @@ async function renderSessions() {
 
   const running = list.find(s => !s.end_at);
   runningSessionId = running?.id || null;
-  qs('runningInfo').textContent = running
-    ? `Running session #${running.id} task #${running.task_id} started: ${new Date(running.start_at).toLocaleTimeString()}`
-    : 'No running task right now';
+  const runningInfoEl = qs('runningInfo');
+  runningInfoEl.textContent = running
+    ? `🟢 Running session #${running.id} · task #${running.task_id} · started ${new Date(running.start_at).toLocaleTimeString()}`
+    : '⚪ No running task right now';
+  runningInfoEl.style.borderColor = running ? 'rgba(34, 197, 94, 0.6)' : '#38527a';
+  runningInfoEl.style.background = running ? 'rgba(34, 197, 94, 0.08)' : '#0f1a2f';
 
   list.forEach(s => {
     const div = document.createElement('div');
-    div.className = 'session-item';
+    div.className = `session-item ${!s.end_at ? 'running' : ''}`;
     div.innerHTML = `
       <b>Session #${s.id}</b> task#${s.task_id}
       <div>${new Date(s.start_at).toLocaleTimeString()} - ${s.end_at ? new Date(s.end_at).toLocaleTimeString() : 'running...'}</div>

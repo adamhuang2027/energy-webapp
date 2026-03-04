@@ -184,6 +184,25 @@ button.ghost {
   background: var(--bg-elev);
 }
 
+.now-status-card {
+  border-color: #3f5f95;
+  background: linear-gradient(180deg, #14233d, #111c30);
+}
+
+.running-info {
+  border: 1px solid #38527a;
+  background: #0f1a2f;
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  font-weight: 600;
+  color: #d5e5ff;
+}
+
+.session-item.running {
+  border-color: rgba(34, 197, 94, 0.55);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18) inset;
+}
+
 .task-head {
   display: flex;
   gap: var(--space-2);

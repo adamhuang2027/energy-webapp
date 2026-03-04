@@ -123,8 +123,9 @@
       <section id="now" class="panel">
         <h2>Execution (Now)</h2>
         <p class="muted">Start one focused session, then close it with actual energy cost and tags.</p>
-        <div class="card">
-          <div id="runningInfo">No running task right now</div>
+        <div class="card now-status-card">
+          <h3>Current Focus Status</h3>
+          <div id="runningInfo" class="running-info">No running task right now</div>
           <div class="row">
             <select id="startTaskSelect"></select>
             <button id="btnStart">Start Task</button>
@@ -144,6 +145,7 @@
 
         <div class="card">
           <h3>Today's Sessions</h3>
+          <p class="muted">Track start/end time, duration, and actual energy cost.</p>
           <div id="sessionList"></div>
         </div>
       </section>
