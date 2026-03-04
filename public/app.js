@@ -40,6 +40,23 @@ function formatTimeCT(iso) {
   }).format(new Date(iso));
 }
 
+function formatDateTimeCT(iso) {
+  if (!iso) return '-';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: CT_TZ,
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(iso));
+}
+
+const focusLabel = { deep: 'Deep Work', shallow: 'Light Work', social: 'Communication' };
+const importanceLabel = { normal: 'Normal', mit: 'Top Priority' };
+const modeLabel = { flexible: 'Flexible', fixed: 'Fixed Time', windowed: 'Time Window' };
+const statusLabel = { todo: 'To Do', done: 'Done' };
+
 function isoToLocalInputValue(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -89,14 +106,14 @@ async function renderTasks() {
         <b>${t.title}</b>
         <div class="task-badges">
           <span class="badge">E${t.energy_demand}</span>
-          <span class="badge">${t.focus_type}</span>
-          <span class="badge">${t.importance}</span>
-          <span class="badge">${t.status}</span>
-          <span class="badge">${t.schedule_mode || 'flexible'}</span>
+          <span class="badge">${focusLabel[t.focus_type] || t.focus_type}</span>
+          <span class="badge">${importanceLabel[t.importance] || t.importance}</span>
+          <span class="badge">${statusLabel[t.status] || t.status}</span>
+          <span class="badge">${modeLabel[t.schedule_mode || 'flexible'] || (t.schedule_mode || 'flexible')}</span>
         </div>
       </div>
-      <div class="muted">scheduled: ${t.scheduled_start || '-'} ~ ${t.scheduled_end || '-'}</div>
-      <div class="muted">fixed: ${t.fixed_start || '-'} ~ ${t.fixed_end || '-'} | window: ${t.window_start_hour ?? '-'} - ${t.window_end_hour ?? '-'}</div>
+      <div class="muted">Scheduled: ${formatDateTimeCT(t.scheduled_start)} ~ ${formatDateTimeCT(t.scheduled_end)}</div>
+      <div class="muted">Constraint: ${formatDateTimeCT(t.fixed_start)} ~ ${formatDateTimeCT(t.fixed_end)} | Window ${t.window_start_hour ?? '-'} - ${t.window_end_hour ?? '-'} (CT)</div>
 
       <div class="row" style="margin-top:8px">
         <button class="success" data-id="${t.id}" data-done="1">Mark Done</button>
@@ -115,15 +132,15 @@ async function renderTasks() {
           </select>
           <label style="font-size:12px;color:#94a3b8">Focus Type</label>
           <select id="focus-${t.id}">
-            <option value="deep" ${t.focus_type === 'deep' ? 'selected' : ''}>deep</option>
-            <option value="shallow" ${t.focus_type === 'shallow' ? 'selected' : ''}>shallow</option>
-            <option value="social" ${t.focus_type === 'social' ? 'selected' : ''}>social</option>
+            <option value="deep" ${t.focus_type === 'deep' ? 'selected' : ''}>Deep Work</option>
+            <option value="shallow" ${t.focus_type === 'shallow' ? 'selected' : ''}>Light Work</option>
+            <option value="social" ${t.focus_type === 'social' ? 'selected' : ''}>Communication</option>
           </select>
           <label style="font-size:12px;color:#94a3b8">Mode</label>
           <select id="mode-${t.id}">
-            <option value="flexible" ${(t.schedule_mode || 'flexible') === 'flexible' ? 'selected' : ''}>flexible</option>
-            <option value="fixed" ${t.schedule_mode === 'fixed' ? 'selected' : ''}>fixed</option>
-            <option value="windowed" ${t.schedule_mode === 'windowed' ? 'selected' : ''}>windowed</option>
+            <option value="flexible" ${(t.schedule_mode || 'flexible') === 'flexible' ? 'selected' : ''}>Flexible</option>
+            <option value="fixed" ${t.schedule_mode === 'fixed' ? 'selected' : ''}>Fixed Time</option>
+            <option value="windowed" ${t.schedule_mode === 'windowed' ? 'selected' : ''}>Time Window</option>
           </select>
           <input id="wstart-${t.id}" type="number" min="0" max="23" value="${t.window_start_hour ?? ''}" placeholder="win start" style="width:90px" />
           <input id="wend-${t.id}" type="number" min="1" max="24" value="${t.window_end_hour ?? ''}" placeholder="win end" style="width:90px" />
