@@ -25,36 +25,45 @@
           <h3>Create Task</h3>
           <p class="muted">Add one task at a time with clear energy demand and scheduling mode.</p>
           <input id="title" placeholder="Task title" required />
-          <div class="row">
-            <input id="estimatedMinutes" type="number" min="5" step="5" placeholder="Estimated minutes (optional)" />
-            <select id="energyDemand">
-              <option value="3">Energy Demand 3</option>
-              <option value="1">Energy Demand 1</option>
-              <option value="2">Energy Demand 2</option>
-              <option value="4">Energy Demand 4</option>
-              <option value="5">Energy Demand 5</option>
-            </select>
-            <select id="focusType">
-              <option value="deep">deep</option>
-              <option value="shallow">shallow</option>
-              <option value="social">social</option>
-            </select>
-            <select id="importance">
-              <option value="normal">normal</option>
-              <option value="mit">MIT</option>
-            </select>
-            <select id="scheduleMode">
-              <option value="flexible">flexible</option>
-              <option value="fixed">fixed</option>
-              <option value="windowed">windowed</option>
-            </select>
+
+          <div class="task-form-section">
+            <h4>1) Basic Task Info</h4>
+            <div class="row">
+              <input id="estimatedMinutes" type="number" min="5" step="5" placeholder="Estimated minutes (optional)" />
+              <select id="energyDemand">
+                <option value="3">Energy Demand 3</option>
+                <option value="1">Energy Demand 1</option>
+                <option value="2">Energy Demand 2</option>
+                <option value="4">Energy Demand 4</option>
+                <option value="5">Energy Demand 5</option>
+              </select>
+              <select id="focusType">
+                <option value="deep">deep</option>
+                <option value="shallow">shallow</option>
+                <option value="social">social</option>
+              </select>
+              <select id="importance">
+                <option value="normal">normal</option>
+                <option value="mit">MIT</option>
+              </select>
+            </div>
           </div>
-          <div class="row">
-            <input id="fixedStart" type="datetime-local" placeholder="Fixed start" />
-            <input id="fixedEnd" type="datetime-local" placeholder="Fixed end" />
-            <input id="windowStartHour" type="number" min="0" max="23" placeholder="Window start hour (0-23)" />
-            <input id="windowEndHour" type="number" min="1" max="24" placeholder="Window end hour (1-24)" />
+
+          <div class="task-form-section">
+            <h4>2) Time Constraints</h4>
+            <div class="row">
+              <select id="scheduleMode">
+                <option value="flexible">flexible</option>
+                <option value="fixed">fixed</option>
+                <option value="windowed">windowed</option>
+              </select>
+              <input id="fixedStart" type="datetime-local" placeholder="Fixed start" />
+              <input id="fixedEnd" type="datetime-local" placeholder="Fixed end" />
+              <input id="windowStartHour" type="number" min="0" max="23" placeholder="Window start hour (0-23)" />
+              <input id="windowEndHour" type="number" min="1" max="24" placeholder="Window end hour (1-24)" />
+            </div>
           </div>
+
           <button type="submit">Add Task</button>
         </form>
 

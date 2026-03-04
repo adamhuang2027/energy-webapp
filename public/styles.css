@@ -101,6 +101,19 @@ h3 {
   font-size: 13px;
 }
 
+.task-form-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed #314463;
+}
+
+.task-form-section h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #b7c9e7;
+  letter-spacing: 0.2px;
+}
+
 .card {
   background: linear-gradient(180deg, #121b2d, #11192a);
   border: 1px solid var(--border);
@@ -197,6 +210,10 @@ button.ghost {
 #taskForm > input#title {
   width: 100%;
   font-size: 15px;
+}
+
+#taskForm > button[type="submit"] {
+  margin-top: var(--space-3);
 }
 
 #taskForm .row > * {
