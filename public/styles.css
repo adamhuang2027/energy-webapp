@@ -264,11 +264,36 @@ button.ghost {
   padding: var(--space-2) 0;
 }
 
+.schedule-controls {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.control-group {
+  border: 1px solid #2f4163;
+  background: #101a2d;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.group-title {
+  display: inline-block;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #9eb7dd;
+  margin-bottom: var(--space-2);
+}
+
 #btnConnectGoogle,
 #btnDisconnectGoogle,
 #btnLoadCalendar {
   background: #1a2740;
   border: 1px solid #3d5682;
+}
+
+#btnGenerate {
+  background: linear-gradient(180deg, #5a93ff, #2f6fe8);
 }
 
 #btnApply,

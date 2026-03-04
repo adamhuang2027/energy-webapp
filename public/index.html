@@ -77,21 +77,36 @@
         <div class="card">
           <h3>Auto Scheduling</h3>
           <p class="muted">Generate a realistic plan based on energy windows and meeting load.</p>
-          <div class="row">
-            <select id="strategy">
-              <option value="steady">steady</option>
-              <option value="sprint">sprint</option>
-              <option value="conservative">conservative</option>
-            </select>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#cbd5e1">
-              <input type="checkbox" id="autoRegenerateToggle" checked />
-              Auto-regenerate after task changes
-            </label>
-            <button id="btnConnectGoogle">Connect Google Calendar (OAuth)</button>
-            <button id="btnDisconnectGoogle">Disconnect Google</button>
-            <button id="btnLoadCalendar">Load Google Calendar Meeting Density</button>
-            <button id="btnGenerate">Generate Schedule</button>
-            <button id="btnApply">Apply Schedule</button>
+          <div class="schedule-controls">
+            <div class="control-group">
+              <span class="group-title">Strategy</span>
+              <div class="row">
+                <select id="strategy">
+                  <option value="steady">steady</option>
+                  <option value="sprint">sprint</option>
+                  <option value="conservative">conservative</option>
+                </select>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#cbd5e1">
+                  <input type="checkbox" id="autoRegenerateToggle" checked />
+                  Auto-regenerate after task changes
+                </label>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="group-title">Google Calendar</span>
+              <div class="row">
+                <button id="btnConnectGoogle">Connect Google Calendar (OAuth)</button>
+                <button id="btnDisconnectGoogle">Disconnect Google</button>
+                <button id="btnLoadCalendar">Load Google Calendar Meeting Density</button>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="group-title">Schedule Actions</span>
+              <div class="row">
+                <button id="btnGenerate">Generate Schedule</button>
+                <button id="btnApply">Apply Schedule</button>
+              </div>
+            </div>
           </div>
           <div id="googleStatus" style="margin-top:8px;color:#93c5fd"></div>
           <div id="meetingDensity" style="margin-top:8px;color:#93c5fd"></div>
