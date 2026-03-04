@@ -48,6 +48,7 @@ function getTodayCT() {
 let latestRecommendations = [];
 let latestCalendar = null;
 let runningSessionId = null;
+let focusTimerInterval = null;
 let autoRegenerate = localStorage.getItem('autoRegenerate') !== 'false';
 
 const SLOT_CONFIG = {
@@ -93,6 +94,44 @@ function isoToLocalInputValue(iso) {
 
 function localInputValueToIso(val) {
   return val ? new Date(val).toISOString() : null;
+}
+
+function secondsToHHMMSS(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  return `${h}:${m}:${sec}`;
+}
+
+function renderFocusTimer(session) {
+  const el = qs('focusTimer');
+  if (!session) {
+    if (focusTimerInterval) clearInterval(focusTimerInterval);
+    focusTimerInterval = null;
+    el.textContent = 'Focus time: 00:00:00';
+    return;
+  }
+
+  if (focusTimerInterval) clearInterval(focusTimerInterval);
+
+  const tick = () => {
+    const startMs = new Date(session.start_at).getTime();
+    const nowMs = Date.now();
+    const pausedMsStored = (session.total_paused_minutes || 0) * 60 * 1000;
+
+    let extraPausedMs = 0;
+    if (session.paused_at) {
+      extraPausedMs = Math.max(0, nowMs - new Date(session.paused_at).getTime());
+    }
+
+    const activeMs = Math.max(0, nowMs - startMs - pausedMsStored - extraPausedMs);
+    const label = session.paused_at ? 'Focus time (paused)' : 'Focus time';
+    el.textContent = `${label}: ${secondsToHHMMSS(activeMs / 1000)}`;
+  };
+
+  tick();
+  focusTimerInterval = setInterval(tick, 1000);
 }
 
 function getCurrentSlotCT() {
@@ -306,6 +345,8 @@ async function renderSessions() {
   qs('btnPause').disabled = !running || isPaused;
   qs('btnResume').disabled = !running || !isPaused;
   qs('btnStart').disabled = Boolean(running);
+
+  renderFocusTimer(running);
 
   list.forEach(s => {
     const div = document.createElement('div');
