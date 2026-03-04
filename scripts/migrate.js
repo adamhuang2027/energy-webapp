@@ -18,4 +18,17 @@ ensureColumn('fixed_end', 'fixed_end TEXT');
 ensureColumn('window_start_hour', 'window_start_hour INTEGER');
 ensureColumn('window_end_hour', 'window_end_hour INTEGER');
 
+function ensureSessionColumn(name, ddl) {
+  const cols = db.prepare('PRAGMA table_info(sessions)').all();
+  if (!cols.find(c => c.name === name)) {
+    db.exec(`ALTER TABLE sessions ADD COLUMN ${ddl}`);
+    console.log(`Added session column: ${name}`);
+  } else {
+    console.log(`Session column exists: ${name}`);
+  }
+}
+
+ensureSessionColumn('paused_at', 'paused_at TEXT');
+ensureSessionColumn('total_paused_minutes', 'total_paused_minutes INTEGER NOT NULL DEFAULT 0');
+
 console.log('Migration completed.');

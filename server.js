@@ -66,6 +66,8 @@ function initDb() {
       task_id INTEGER NOT NULL,
       start_at TEXT NOT NULL,
       end_at TEXT,
+      paused_at TEXT,
+      total_paused_minutes INTEGER NOT NULL DEFAULT 0,
       duration_minutes INTEGER,
       actual_energy_cost INTEGER,
       reason_tags TEXT DEFAULT '[]',
@@ -105,6 +107,13 @@ function initDb() {
   ensureColumn('fixed_end', 'fixed_end TEXT');
   ensureColumn('window_start_hour', 'window_start_hour INTEGER');
   ensureColumn('window_end_hour', 'window_end_hour INTEGER');
+
+  const ensureSessionColumn = (name, ddl) => {
+    const cols = db.prepare("PRAGMA table_info(sessions)").all();
+    if (!cols.find(c => c.name === name)) db.exec(`ALTER TABLE sessions ADD COLUMN ${ddl}`);
+  };
+  ensureSessionColumn('paused_at', 'paused_at TEXT');
+  ensureSessionColumn('total_paused_minutes', 'total_paused_minutes INTEGER NOT NULL DEFAULT 0');
 }
 
 initDb();
@@ -614,6 +623,33 @@ app.post('/api/v1/sessions/start', (req, res) => {
   res.json({ data: db.prepare('SELECT * FROM sessions WHERE id=?').get(info.lastInsertRowid), error: null });
 });
 
+app.post('/api/v1/sessions/:id/pause', (req, res) => {
+  const id = Number(req.params.id);
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (session.end_at) return res.status(409).json({ error: 'Session already ended' });
+  if (session.paused_at) return res.status(409).json({ error: 'Session already paused' });
+
+  const pausedAt = req.body.pausedAt || new Date().toISOString();
+  db.prepare('UPDATE sessions SET paused_at=?, updated_at=? WHERE id=?').run(pausedAt, new Date().toISOString(), id);
+  res.json({ data: db.prepare('SELECT * FROM sessions WHERE id=?').get(id), error: null });
+});
+
+app.post('/api/v1/sessions/:id/resume', (req, res) => {
+  const id = Number(req.params.id);
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (session.end_at) return res.status(409).json({ error: 'Session already ended' });
+  if (!session.paused_at) return res.status(409).json({ error: 'Session is not paused' });
+
+  const resumedAt = req.body.resumedAt || new Date().toISOString();
+  const pausedMin = Math.max(0, Math.round((new Date(resumedAt).getTime() - new Date(session.paused_at).getTime()) / 60000));
+  const totalPaused = (session.total_paused_minutes || 0) + pausedMin;
+  db.prepare('UPDATE sessions SET paused_at=NULL, total_paused_minutes=?, updated_at=? WHERE id=?')
+    .run(totalPaused, new Date().toISOString(), id);
+  res.json({ data: db.prepare('SELECT * FROM sessions WHERE id=?').get(id), error: null });
+});
+
 app.post('/api/v1/sessions/:id/end', (req, res) => {
   const id = Number(req.params.id);
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id);
@@ -621,13 +657,20 @@ app.post('/api/v1/sessions/:id/end', (req, res) => {
   if (session.end_at) return res.status(409).json({ error: 'Session already ended' });
 
   const { endedAt = new Date().toISOString(), actualEnergyCost, reasonTags = [], interruptionsCount = 0, markDone = true } = req.body;
-  const durationMinutes = Math.max(1, Math.round((new Date(endedAt).getTime() - new Date(session.start_at).getTime()) / 60000));
+
+  let totalPausedMinutes = session.total_paused_minutes || 0;
+  if (session.paused_at) {
+    totalPausedMinutes += Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(session.paused_at).getTime()) / 60000));
+  }
+
+  const rawDuration = Math.round((new Date(endedAt).getTime() - new Date(session.start_at).getTime()) / 60000);
+  const durationMinutes = Math.max(1, rawDuration - totalPausedMinutes);
 
   db.prepare(`
     UPDATE sessions
-    SET end_at=?, duration_minutes=?, actual_energy_cost=?, reason_tags=?, interruptions_count=?, updated_at=?
+    SET end_at=?, paused_at=NULL, total_paused_minutes=?, duration_minutes=?, actual_energy_cost=?, reason_tags=?, interruptions_count=?, updated_at=?
     WHERE id=?
-  `).run(endedAt, durationMinutes, actualEnergyCost ?? null, JSON.stringify(reasonTags), interruptionsCount, new Date().toISOString(), id);
+  `).run(endedAt, totalPausedMinutes, durationMinutes, actualEnergyCost ?? null, JSON.stringify(reasonTags), interruptionsCount, new Date().toISOString(), id);
 
   const newStatus = markDone ? 'done' : 'todo';
   db.prepare('UPDATE tasks SET status=?, updated_at=? WHERE id=?').run(newStatus, new Date().toISOString(), session.task_id);

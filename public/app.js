@@ -7,6 +7,8 @@ const api = {
   generateSchedule: (body) => fetch('/api/v1/schedule/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   applySchedule: (body) => fetch('/api/v1/schedule/apply', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   startSession: (body) => fetch('/api/v1/sessions/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
+  pauseSession: (id, body = {}) => fetch(`/api/v1/sessions/${id}/pause`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
+  resumeSession: (id, body = {}) => fetch(`/api/v1/sessions/${id}/resume`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   endSession: (id, body) => fetch(`/api/v1/sessions/${id}/end`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   getSessions: (date) => fetch(`/api/v1/sessions?date=${date}`).then(r => r.json()),
   getRunningSession: async () => {
@@ -293,20 +295,25 @@ async function renderSessions() {
   }
 
   runningSessionId = running?.id || null;
+  const isPaused = Boolean(running?.paused_at);
   const runningInfoEl = qs('runningInfo');
   runningInfoEl.textContent = running
-    ? `🟢 Running session #${running.id} · task #${running.task_id} · started ${new Date(running.start_at).toLocaleTimeString()}`
+    ? `${isPaused ? '⏸️ Paused' : '🟢 Running'} session #${running.id} · task #${running.task_id} · started ${new Date(running.start_at).toLocaleTimeString()}`
     : '⚪ No running task right now';
-  runningInfoEl.style.borderColor = running ? 'rgba(34, 197, 94, 0.6)' : '#38527a';
-  runningInfoEl.style.background = running ? 'rgba(34, 197, 94, 0.08)' : '#0f1a2f';
+  runningInfoEl.style.borderColor = running ? (isPaused ? 'rgba(245, 158, 11, 0.7)' : 'rgba(34, 197, 94, 0.6)') : '#38527a';
+  runningInfoEl.style.background = running ? (isPaused ? 'rgba(245, 158, 11, 0.10)' : 'rgba(34, 197, 94, 0.08)') : '#0f1a2f';
+
+  qs('btnPause').disabled = !running || isPaused;
+  qs('btnResume').disabled = !running || !isPaused;
+  qs('btnStart').disabled = Boolean(running);
 
   list.forEach(s => {
     const div = document.createElement('div');
     div.className = `session-item ${(!s.end_at || (running && running.id === s.id)) ? 'running' : ''}`;
     div.innerHTML = `
       <b>Session #${s.id}</b> task#${s.task_id}
-      <div>${new Date(s.start_at).toLocaleTimeString()} - ${s.end_at ? new Date(s.end_at).toLocaleTimeString() : 'running...'}</div>
-      <div>duration: ${s.duration_minutes || '-'} mins, energyCost: ${s.actual_energy_cost || '-'}</div>
+      <div>${new Date(s.start_at).toLocaleTimeString()} - ${s.end_at ? new Date(s.end_at).toLocaleTimeString() : (s.paused_at ? 'paused...' : 'running...')}</div>
+      <div>duration: ${s.duration_minutes || '-'} mins, paused: ${s.total_paused_minutes || 0} mins, energyCost: ${s.actual_energy_cost || '-'}</div>
     `;
     container.appendChild(div);
   });
@@ -412,6 +419,20 @@ qs('btnStart').addEventListener('click', async () => {
   if (res.error) return alert(res.error);
   await refreshAll();
   setTimeout(() => { renderSessions(); }, 250);
+});
+
+qs('btnPause').addEventListener('click', async () => {
+  if (!runningSessionId) return alert('There is no running session right now');
+  const res = await api.pauseSession(runningSessionId);
+  if (res.error) return alert(res.error);
+  await renderSessions();
+});
+
+qs('btnResume').addEventListener('click', async () => {
+  if (!runningSessionId) return alert('There is no paused session right now');
+  const res = await api.resumeSession(runningSessionId);
+  if (res.error) return alert(res.error);
+  await renderSessions();
 });
 
 qs('btnEnd').addEventListener('click', async () => {
