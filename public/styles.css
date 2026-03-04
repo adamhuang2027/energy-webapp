@@ -184,6 +184,33 @@ button.ghost {
   background: var(--bg-elev);
 }
 
+.task-head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+.task-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.task-advanced {
+  margin-top: var(--space-2);
+  border-top: 1px dashed #314463;
+  padding-top: var(--space-2);
+}
+
+.task-advanced summary {
+  cursor: pointer;
+  color: #bad0f4;
+  font-size: 13px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

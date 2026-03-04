@@ -85,42 +85,53 @@ async function renderTasks() {
     const div = document.createElement('div');
     div.className = 'task-item';
     div.innerHTML = `
-      <b>${t.title}</b>
-      <span class="badge">E${t.energy_demand}</span>
-      <span class="badge">${t.focus_type}</span>
-      <span class="badge">${t.importance}</span>
-      <span class="badge">${t.status}</span>
-      <span class="badge">${t.schedule_mode || 'flexible'}</span>
-      <div>scheduled: ${t.scheduled_start || '-'} ~ ${t.scheduled_end || '-'}</div>
-      <div>fixed: ${t.fixed_start || '-'} ~ ${t.fixed_end || '-'} | window: ${t.window_start_hour ?? '-'} - ${t.window_end_hour ?? '-'}</div>
-      <div class="row" style="margin-top:6px">
-        <label style="font-size:12px;color:#94a3b8">Energy Demand</label>
-        <select id="energy-${t.id}">
-          <option value="1" ${t.energy_demand === 1 ? 'selected' : ''}>1</option>
-          <option value="2" ${t.energy_demand === 2 ? 'selected' : ''}>2</option>
-          <option value="3" ${t.energy_demand === 3 ? 'selected' : ''}>3</option>
-          <option value="4" ${t.energy_demand === 4 ? 'selected' : ''}>4</option>
-          <option value="5" ${t.energy_demand === 5 ? 'selected' : ''}>5</option>
-        </select>
-        <label style="font-size:12px;color:#94a3b8">Focus Type</label>
-        <select id="focus-${t.id}">
-          <option value="deep" ${t.focus_type === 'deep' ? 'selected' : ''}>deep</option>
-          <option value="shallow" ${t.focus_type === 'shallow' ? 'selected' : ''}>shallow</option>
-          <option value="social" ${t.focus_type === 'social' ? 'selected' : ''}>social</option>
-        </select>
-        <label style="font-size:12px;color:#94a3b8">Mode</label>
-        <select id="mode-${t.id}">
-          <option value="flexible" ${(t.schedule_mode || 'flexible') === 'flexible' ? 'selected' : ''}>flexible</option>
-          <option value="fixed" ${t.schedule_mode === 'fixed' ? 'selected' : ''}>fixed</option>
-          <option value="windowed" ${t.schedule_mode === 'windowed' ? 'selected' : ''}>windowed</option>
-        </select>
-        <input id="wstart-${t.id}" type="number" min="0" max="23" value="${t.window_start_hour ?? ''}" placeholder="win start" style="width:90px" />
-        <input id="wend-${t.id}" type="number" min="1" max="24" value="${t.window_end_hour ?? ''}" placeholder="win end" style="width:90px" />
-        <input id="fstart-${t.id}" type="datetime-local" value="${isoToLocalInputValue(t.fixed_start)}" style="min-width:190px" />
-        <input id="fend-${t.id}" type="datetime-local" value="${isoToLocalInputValue(t.fixed_end)}" style="min-width:190px" />
-        <button class="secondary" data-id="${t.id}" data-action="save-task-meta">Save</button>
+      <div class="task-head">
+        <b>${t.title}</b>
+        <div class="task-badges">
+          <span class="badge">E${t.energy_demand}</span>
+          <span class="badge">${t.focus_type}</span>
+          <span class="badge">${t.importance}</span>
+          <span class="badge">${t.status}</span>
+          <span class="badge">${t.schedule_mode || 'flexible'}</span>
+        </div>
+      </div>
+      <div class="muted">scheduled: ${t.scheduled_start || '-'} ~ ${t.scheduled_end || '-'}</div>
+      <div class="muted">fixed: ${t.fixed_start || '-'} ~ ${t.fixed_end || '-'} | window: ${t.window_start_hour ?? '-'} - ${t.window_end_hour ?? '-'}</div>
+
+      <div class="row" style="margin-top:8px">
         <button class="success" data-id="${t.id}" data-done="1">Mark Done</button>
       </div>
+
+      <details class="task-advanced">
+        <summary>Advanced Edit</summary>
+        <div class="row" style="margin-top:8px">
+          <label style="font-size:12px;color:#94a3b8">Energy Demand</label>
+          <select id="energy-${t.id}">
+            <option value="1" ${t.energy_demand === 1 ? 'selected' : ''}>1</option>
+            <option value="2" ${t.energy_demand === 2 ? 'selected' : ''}>2</option>
+            <option value="3" ${t.energy_demand === 3 ? 'selected' : ''}>3</option>
+            <option value="4" ${t.energy_demand === 4 ? 'selected' : ''}>4</option>
+            <option value="5" ${t.energy_demand === 5 ? 'selected' : ''}>5</option>
+          </select>
+          <label style="font-size:12px;color:#94a3b8">Focus Type</label>
+          <select id="focus-${t.id}">
+            <option value="deep" ${t.focus_type === 'deep' ? 'selected' : ''}>deep</option>
+            <option value="shallow" ${t.focus_type === 'shallow' ? 'selected' : ''}>shallow</option>
+            <option value="social" ${t.focus_type === 'social' ? 'selected' : ''}>social</option>
+          </select>
+          <label style="font-size:12px;color:#94a3b8">Mode</label>
+          <select id="mode-${t.id}">
+            <option value="flexible" ${(t.schedule_mode || 'flexible') === 'flexible' ? 'selected' : ''}>flexible</option>
+            <option value="fixed" ${t.schedule_mode === 'fixed' ? 'selected' : ''}>fixed</option>
+            <option value="windowed" ${t.schedule_mode === 'windowed' ? 'selected' : ''}>windowed</option>
+          </select>
+          <input id="wstart-${t.id}" type="number" min="0" max="23" value="${t.window_start_hour ?? ''}" placeholder="win start" style="width:90px" />
+          <input id="wend-${t.id}" type="number" min="1" max="24" value="${t.window_end_hour ?? ''}" placeholder="win end" style="width:90px" />
+          <input id="fstart-${t.id}" type="datetime-local" value="${isoToLocalInputValue(t.fixed_start)}" style="min-width:190px" />
+          <input id="fend-${t.id}" type="datetime-local" value="${isoToLocalInputValue(t.fixed_end)}" style="min-width:190px" />
+          <button class="secondary" data-id="${t.id}" data-action="save-task-meta">Save</button>
+        </div>
+      </details>
     `;
     div.querySelector('[data-action="save-task-meta"]').addEventListener('click', async () => {
       const energyDemand = Number(div.querySelector(`#energy-${t.id}`).value);
