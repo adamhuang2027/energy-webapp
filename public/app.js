@@ -9,6 +9,7 @@ const api = {
   startSession: (body) => fetch('/api/v1/sessions/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   endSession: (id, body) => fetch(`/api/v1/sessions/${id}/end`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   getSessions: (date) => fetch(`/api/v1/sessions?date=${date}`).then(r => r.json()),
+  getRunningSession: () => fetch('/api/v1/sessions/running').then(r => r.json()),
   getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json()),
   getMeetingDensity: (date) => fetch(`/api/v1/calendar/meeting-density?date=${date}`).then(r => r.json()),
   getWeeklyInsights: (endDate) => fetch(`/api/v1/insights/weekly?endDate=${endDate}`).then(r => r.json()),
@@ -273,7 +274,12 @@ async function renderSessions() {
   const container = qs('sessionList');
   container.innerHTML = '';
 
-  const running = list.find(s => !s.end_at);
+  let running = list.find(s => !s.end_at) || null;
+  if (!running) {
+    const runningRes = await api.getRunningSession();
+    running = runningRes.data || null;
+  }
+
   runningSessionId = running?.id || null;
   const runningInfoEl = qs('runningInfo');
   runningInfoEl.textContent = running
@@ -284,7 +290,7 @@ async function renderSessions() {
 
   list.forEach(s => {
     const div = document.createElement('div');
-    div.className = `session-item ${!s.end_at ? 'running' : ''}`;
+    div.className = `session-item ${(!s.end_at || (running && running.id === s.id)) ? 'running' : ''}`;
     div.innerHTML = `
       <b>Session #${s.id}</b> task#${s.task_id}
       <div>${new Date(s.start_at).toLocaleTimeString()} - ${s.end_at ? new Date(s.end_at).toLocaleTimeString() : 'running...'}</div>
@@ -393,6 +399,7 @@ qs('btnStart').addEventListener('click', async () => {
   const res = await api.startSession({ taskId });
   if (res.error) return alert(res.error);
   await refreshAll();
+  setTimeout(() => { renderSessions(); }, 250);
 });
 
 qs('btnEnd').addEventListener('click', async () => {

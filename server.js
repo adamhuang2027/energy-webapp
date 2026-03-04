@@ -642,6 +642,11 @@ app.get('/api/v1/sessions', (req, res) => {
   res.json({ data: rows, error: null });
 });
 
+app.get('/api/v1/sessions/running', (_req, res) => {
+  const row = db.prepare('SELECT * FROM sessions WHERE end_at IS NULL ORDER BY start_at DESC LIMIT 1').get();
+  res.json({ data: row || null, error: null });
+});
+
 // --- Schedule ---
 app.post('/api/v1/schedule/generate', async (req, res) => {
   const { date = todayStr(), strategy = 'steady', includeCalendar = true } = req.body;
