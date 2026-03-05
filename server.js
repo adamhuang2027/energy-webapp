@@ -71,6 +71,7 @@ function initDb() {
       duration_minutes INTEGER,
       actual_energy_cost INTEGER,
       reason_tags TEXT DEFAULT '[]',
+      session_details TEXT,
       interruptions_count INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -114,6 +115,7 @@ function initDb() {
   };
   ensureSessionColumn('paused_at', 'paused_at TEXT');
   ensureSessionColumn('total_paused_minutes', 'total_paused_minutes INTEGER NOT NULL DEFAULT 0');
+  ensureSessionColumn('session_details', 'session_details TEXT');
 }
 
 initDb();
@@ -656,7 +658,14 @@ app.post('/api/v1/sessions/:id/end', (req, res) => {
   if (!session) return res.status(404).json({ error: 'Session not found' });
   if (session.end_at) return res.status(409).json({ error: 'Session already ended' });
 
-  const { endedAt = new Date().toISOString(), actualEnergyCost, reasonTags = [], interruptionsCount = 0, markDone = true } = req.body;
+  const {
+    endedAt = new Date().toISOString(),
+    actualEnergyCost,
+    reasonTags = [],
+    sessionDetails = '',
+    interruptionsCount = 0,
+    markDone = true,
+  } = req.body;
 
   let totalPausedMinutes = session.total_paused_minutes || 0;
   if (session.paused_at) {
@@ -668,9 +677,19 @@ app.post('/api/v1/sessions/:id/end', (req, res) => {
 
   db.prepare(`
     UPDATE sessions
-    SET end_at=?, paused_at=NULL, total_paused_minutes=?, duration_minutes=?, actual_energy_cost=?, reason_tags=?, interruptions_count=?, updated_at=?
+    SET end_at=?, paused_at=NULL, total_paused_minutes=?, duration_minutes=?, actual_energy_cost=?, reason_tags=?, session_details=?, interruptions_count=?, updated_at=?
     WHERE id=?
-  `).run(endedAt, totalPausedMinutes, durationMinutes, actualEnergyCost ?? null, JSON.stringify(reasonTags), interruptionsCount, new Date().toISOString(), id);
+  `).run(
+    endedAt,
+    totalPausedMinutes,
+    durationMinutes,
+    actualEnergyCost ?? null,
+    JSON.stringify(reasonTags),
+    String(sessionDetails || '').trim() || null,
+    interruptionsCount,
+    new Date().toISOString(),
+    id
+  );
 
   const newStatus = markDone ? 'done' : 'todo';
   db.prepare('UPDATE tasks SET status=?, updated_at=? WHERE id=?').run(newStatus, new Date().toISOString(), session.task_id);

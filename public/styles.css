@@ -131,7 +131,7 @@ h3 {
   align-items: center;
 }
 
-input, select, button {
+input, select, button, textarea {
   padding: 9px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid #3b4a67;
@@ -139,12 +139,18 @@ input, select, button {
   color: var(--text);
 }
 
-input::placeholder { color: #7f93b5; }
+input::placeholder, textarea::placeholder { color: #7f93b5; }
 
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: #6ea6ff;
   box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.2);
+}
+
+#sessionDetails {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
 }
 
 button {

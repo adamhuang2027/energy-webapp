@@ -122,7 +122,7 @@
 
       <section id="now" class="panel">
         <h2>Execution (Now)</h2>
-        <p class="muted">Start one focused session, then close it with actual energy cost and tags.</p>
+        <p class="muted">Start one focused session, then close it with actual energy cost and a detailed session note for AI-ready work reporting.</p>
         <div class="card now-status-card">
           <h3>Current Focus Status</h3>
           <div id="runningInfo" class="running-info">No running task right now</div>
@@ -141,8 +141,10 @@
               <option value="4">4</option>
               <option value="5">5</option>
             </select>
-            <input id="reasonTags" placeholder="Enter reason tags (comma-separated), e.g. distraction,sleep_low" />
             <button id="btnEnd">End Session</button>
+          </div>
+          <div class="row">
+            <textarea id="sessionDetails" rows="5" placeholder="Session details (detailed notes): what exactly you worked on, decisions made, blockers, outcomes, next steps. This will be used by AI for structured work reports."></textarea>
           </div>
         </div>
 

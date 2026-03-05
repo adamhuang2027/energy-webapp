@@ -355,6 +355,7 @@ async function renderSessions() {
       <b>Session #${s.id}</b> task#${s.task_id}
       <div>${new Date(s.start_at).toLocaleTimeString()} - ${s.end_at ? new Date(s.end_at).toLocaleTimeString() : (s.paused_at ? 'paused...' : 'running...')}</div>
       <div>duration: ${s.duration_minutes || '-'} mins, paused: ${s.total_paused_minutes || 0} mins, energyCost: ${s.actual_energy_cost || '-'}</div>
+      <div class="muted" style="margin-top:4px">details: ${s.session_details ? s.session_details : '-'}</div>
     `;
     container.appendChild(div);
   });
@@ -478,15 +479,15 @@ qs('btnResume').addEventListener('click', async () => {
 
 qs('btnEnd').addEventListener('click', async () => {
   if (!runningSessionId) return alert('There is no running session right now');
-  const reasonTags = qs('reasonTags').value.split(',').map(s => s.trim()).filter(Boolean);
+  const sessionDetails = qs('sessionDetails').value.trim();
   const res = await api.endSession(runningSessionId, {
     actualEnergyCost: Number(qs('energyCost').value),
-    reasonTags,
+    sessionDetails,
     interruptionsCount: 0,
     markDone: true,
   });
   if (res.error) return alert(res.error);
-  qs('reasonTags').value = '';
+  qs('sessionDetails').value = '';
   await refreshAll();
 });
 
