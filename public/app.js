@@ -345,7 +345,7 @@ async function renderSessions() {
 
   qs('btnPause').disabled = !running || isPaused;
   qs('btnResume').disabled = !running || !isPaused;
-  qs('btnStart').disabled = Boolean(running);
+  qs('btnStart').disabled = Boolean(running && !isPaused);
 
   renderFocusTimer(running);
 

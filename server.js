@@ -616,8 +616,11 @@ app.post('/api/v1/sessions/start', (req, res) => {
   const { taskId, startedAt = new Date().toISOString() } = req.body;
   if (!taskId) return res.status(400).json({ error: 'taskId required' });
 
-  const running = db.prepare('SELECT * FROM sessions WHERE task_id = ? AND end_at IS NULL').get(taskId);
-  if (running) return res.status(409).json({ error: 'Task already has a running session' });
+  const sameTaskOpen = db.prepare('SELECT * FROM sessions WHERE task_id = ? AND end_at IS NULL').get(taskId);
+  if (sameTaskOpen) return res.status(409).json({ error: 'Task already has an open session (running or paused)' });
+
+  const active = db.prepare('SELECT * FROM sessions WHERE end_at IS NULL AND paused_at IS NULL LIMIT 1').get();
+  if (active) return res.status(409).json({ error: 'Another session is currently running. Pause or end it first.' });
 
   const info = db.prepare('INSERT INTO sessions (task_id, start_at) VALUES (?, ?)').run(taskId, startedAt);
   db.prepare("UPDATE tasks SET status='doing', updated_at=? WHERE id=?").run(new Date().toISOString(), taskId);
@@ -643,6 +646,9 @@ app.post('/api/v1/sessions/:id/resume', (req, res) => {
   if (!session) return res.status(404).json({ error: 'Session not found' });
   if (session.end_at) return res.status(409).json({ error: 'Session already ended' });
   if (!session.paused_at) return res.status(409).json({ error: 'Session is not paused' });
+
+  const active = db.prepare('SELECT * FROM sessions WHERE end_at IS NULL AND paused_at IS NULL AND id != ? LIMIT 1').get(id);
+  if (active) return res.status(409).json({ error: 'Another session is currently running. Pause or end it first.' });
 
   const resumedAt = req.body.resumedAt || new Date().toISOString();
   const pausedMin = Math.max(0, Math.round((new Date(resumedAt).getTime() - new Date(session.paused_at).getTime()) / 60000));
@@ -705,7 +711,12 @@ app.get('/api/v1/sessions', (req, res) => {
 });
 
 app.get('/api/v1/sessions/running', (_req, res) => {
-  const row = db.prepare('SELECT * FROM sessions WHERE end_at IS NULL ORDER BY start_at DESC LIMIT 1').get();
+  const row = db.prepare(`
+    SELECT * FROM sessions
+    WHERE end_at IS NULL
+    ORDER BY (paused_at IS NULL) DESC, start_at DESC
+    LIMIT 1
+  `).get();
   res.json({ data: row || null, error: null });
 });
 
