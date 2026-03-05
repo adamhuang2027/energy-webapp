@@ -190,6 +190,11 @@ button.ghost {
   background: var(--bg-elev);
 }
 
+#aiWorkReport {
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
 .now-status-card {
   border-color: #3f5f95;
   background: linear-gradient(180deg, #14233d, #111c30);

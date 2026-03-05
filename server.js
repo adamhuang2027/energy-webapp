@@ -860,6 +860,104 @@ app.get('/api/v1/insights/weekly', (req, res) => {
   res.json({ data: out, error: null });
 });
 
+app.get('/api/v1/report/ai-work', (req, res) => {
+  const date = String(req.query.date || todayStr());
+  const { start, end } = getDayUtcRange(date, GCAL_TIMEZONE);
+
+  const sessions = db.prepare(`
+    SELECT s.*, t.title AS task_title, t.focus_type, t.energy_demand
+    FROM sessions s
+    LEFT JOIN tasks t ON t.id = s.task_id
+    WHERE s.start_at >= ? AND s.start_at < ?
+    ORDER BY s.start_at ASC
+  `).all(start, end);
+
+  const finished = sessions.filter(s => Boolean(s.end_at));
+  const totalMinutes = finished.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
+  const pausedMinutes = sessions.reduce((sum, s) => sum + (s.total_paused_minutes || 0), 0);
+  const avgEnergyCost = finished.length
+    ? (finished.reduce((sum, s) => sum + (s.actual_energy_cost || 0), 0) / finished.length).toFixed(1)
+    : '-';
+
+  const focusCounter = { deep: 0, shallow: 0, social: 0 };
+  for (const s of sessions) {
+    if (s.focus_type && focusCounter[s.focus_type] !== undefined) focusCounter[s.focus_type] += 1;
+  }
+
+  const details = sessions
+    .map(s => String(s.session_details || '').trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  const topTasks = Object.entries(
+    sessions.reduce((acc, s) => {
+      const key = s.task_title || `Task#${s.task_id}`;
+      acc[key] = (acc[key] || 0) + (s.duration_minutes || 0);
+      return acc;
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([title, mins]) => `- ${title}（${mins} min）`)
+    .join('\n') || '- 暂无可归纳任务';
+
+  const behaviorSummary = [
+    `- 今日 session 数：${sessions.length}（完成 ${finished.length}）`,
+    `- 有效专注时长：${totalMinutes} min；暂停时长：${pausedMinutes} min`,
+    `- 平均体感能耗：${avgEnergyCost}`,
+    `- 专注类型分布：deep ${focusCounter.deep} / shallow ${focusCounter.shallow} / social ${focusCounter.social}`,
+    '- 主要投入任务：',
+    topTasks,
+    details.length ? '- 关键工作内容摘录：\n' + details.map(d => `  - ${d}`).join('\n') : '- 关键工作内容摘录：暂无（建议每次结束 session 填写 details）',
+  ].join('\n');
+
+  const reflection = [
+    '- 职场反思：你今天有明显“系统化推进”倾向（记录、结构化、可复用），这对职业成长非常关键。',
+    finished.length < sessions.length
+      ? '- 职场反思：存在未闭环 session，建议在结束前补一句“结果 + 下一步”，方便跨天衔接。'
+      : '- 职场反思：闭环率较好，说明执行与收尾意识在增强。',
+    totalMinutes < 90
+      ? '- 幸福反思：今天深度投入偏少，可能被上下文切换打断；建议明天先锁定一段 45-90 分钟无打扰时段。'
+      : '- 幸福反思：你投入了可观专注时长，注意保持“节奏感”而不是持续硬扛。',
+    details.length === 0
+      ? '- 幸福反思：缺少过程记录会降低成就感可见度，建议每次至少写 3 行（做了什么/卡点/下一步）。'
+      : '- 幸福反思：你在把行动转为可复盘文本，这会持续提升掌控感与成就感。',
+  ].join('\n');
+
+  const suggestions = [
+    '- 明日优先级：先完成 1 个“可交付闭环”（可演示/可提交/可复用）。',
+    '- 执行策略：每个 session 结束固定写 5 句：动作、结果、决策、阻塞、下一步。',
+    '- 节奏策略：采用 90min 深度 + 10min 复盘，避免长时间无复盘造成疲劳堆积。',
+    '- 职业策略：把今天的高价值改动整理成周报条目（问题→动作→影响），用于强化职业叙事。',
+  ].join('\n');
+
+  const report = [
+    `## AI Work Report（幸福职业教练）- ${date}`,
+    '### 1) 今日行为总结',
+    behaviorSummary,
+    '',
+    '### 2) 职场与幸福反思',
+    reflection,
+    '',
+    '### 3) 接下来更优建议',
+    suggestions,
+  ].join('\n');
+
+  res.json({
+    data: {
+      date,
+      metrics: {
+        sessions: sessions.length,
+        finished: finished.length,
+        focusMinutes: totalMinutes,
+        pausedMinutes,
+      },
+      report,
+    },
+    error: null,
+  });
+});
+
 app.get('/api/v1/health', (_req, res) => res.json({ data: { ok: true, timezone: GCAL_TIMEZONE }, error: null }));
 
 app.listen(PORT, () => {

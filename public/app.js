@@ -23,6 +23,7 @@ const api = {
     }
   },
   getReview: (date) => fetch(`/api/v1/review/daily?date=${date}`).then(r => r.json()),
+  getAiWorkReport: (date) => fetch(`/api/v1/report/ai-work?date=${date}`).then(r => r.json()),
   getMeetingDensity: (date) => fetch(`/api/v1/calendar/meeting-density?date=${date}`).then(r => r.json()),
   getWeeklyInsights: (endDate) => fetch(`/api/v1/insights/weekly?endDate=${endDate}`).then(r => r.json()),
   getGoogleStatus: () => fetch('/api/v1/oauth/google/status').then(r => r.json()),
@@ -373,6 +374,17 @@ async function renderReview() {
   `;
 }
 
+async function renderAiWorkReport() {
+  const el = qs('aiWorkReport');
+  if (!el) return;
+  const res = await api.getAiWorkReport(getTodayCT());
+  if (res.error) {
+    el.textContent = `Failed to generate AI Work Report: ${res.error}`;
+    return;
+  }
+  el.textContent = res.data?.report || 'No report available yet.';
+}
+
 async function renderWeeklyTrends() {
   const res = await api.getWeeklyInsights(getTodayCT());
   const rows = res.data || [];
@@ -491,8 +503,13 @@ qs('btnEnd').addEventListener('click', async () => {
   await refreshAll();
 });
 
+qs('btnGenerateAiWorkReport').addEventListener('click', async () => {
+  await renderAiWorkReport();
+});
+
 qs('btnRefreshReview').addEventListener('click', async () => {
   await renderReview();
+  await renderAiWorkReport();
   await renderWeeklyTrends();
 });
 
@@ -503,6 +520,7 @@ async function refreshAll({ regenerate = autoRegenerate } = {}) {
   if (regenerate) await refreshSchedulePreview();
   await renderSessions();
   await renderReview();
+  await renderAiWorkReport();
   await renderWeeklyTrends();
 }
 
