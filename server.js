@@ -528,7 +528,7 @@ app.get('/api/v1/tasks', (req, res) => {
       SUM(CASE WHEN status IN ('todo', 'doing') THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS completed,
       SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archived,
-      COUNT(*) AS all
+      COUNT(*) AS all_count
     FROM tasks
   `).get();
 
