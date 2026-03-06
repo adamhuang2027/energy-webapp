@@ -116,7 +116,12 @@
 
         <div class="card">
           <h3>Task List</h3>
+          <p class="muted">Default view shows only active tasks. Completed tasks are collapsed below.</p>
           <div id="taskList"></div>
+          <details id="completedSection" style="margin-top:12px">
+            <summary id="completedSummary">✅ Completed (0)</summary>
+            <div id="completedTaskList" style="margin-top:8px"></div>
+          </details>
         </div>
       </section>
 

@@ -158,14 +158,22 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 async function renderTasks() {
-  const res = await api.getTasks('active');
-  const tasks = res.data || [];
+  const [activeRes, completedRes] = await Promise.all([
+    api.getTasks('active'),
+    api.getTasks('completed')
+  ]);
+  const tasks = activeRes.data || [];
+  const completedTasks = completedRes.data || [];
   const taskList = qs('taskList');
+  const completedTaskList = qs('completedTaskList');
+  const completedSummary = qs('completedSummary');
   const startSelect = qs('startTaskSelect');
   taskList.innerHTML = '';
+  if (completedTaskList) completedTaskList.innerHTML = '';
   startSelect.innerHTML = '';
+  if (completedSummary) completedSummary.textContent = `✅ Completed (${completedTasks.length})`;
 
-  for (const t of tasks) {
+  const renderTaskCard = (t, options = { completed: false }) => {
     const div = document.createElement('div');
     div.className = 'task-item';
     div.innerHTML = `
@@ -183,7 +191,9 @@ async function renderTasks() {
       <div class="muted">Constraint: ${formatDateTimeCT(t.fixed_start)} ~ ${formatDateTimeCT(t.fixed_end)} | Window ${t.window_start_hour ?? '-'} - ${t.window_end_hour ?? '-'} (CT)</div>
 
       <div class="row" style="margin-top:8px">
-        <button class="success" data-id="${t.id}" data-done="1">Mark Done</button>
+        ${options.completed
+          ? `<button class="secondary" data-id="${t.id}" data-reactivate="1">Mark Active</button>`
+          : `<button class="success" data-id="${t.id}" data-done="1">Mark Done</button>`}
       </div>
 
       <details class="task-advanced">
@@ -217,6 +227,7 @@ async function renderTasks() {
         </div>
       </details>
     `;
+
     div.querySelector('[data-action="save-task-meta"]').addEventListener('click', async () => {
       const energyDemand = Number(div.querySelector(`#energy-${t.id}`).value);
       const focusType = div.querySelector(`#focus-${t.id}`).value;
@@ -233,20 +244,37 @@ async function renderTasks() {
       if (resp.error) return alert(resp.error);
       await refreshAll();
     });
-    div.querySelector('[data-done="1"]').addEventListener('click', async () => {
+
+    const doneBtn = div.querySelector('[data-done="1"]');
+    if (doneBtn) doneBtn.addEventListener('click', async () => {
       await api.patchTask(t.id, { status: 'done' });
       await refreshAll();
     });
-    taskList.appendChild(div);
 
-    if (t.status !== 'done') {
-      const opt = document.createElement('option');
-      opt.value = t.id;
-      opt.textContent = `${t.title} (E${t.energy_demand})`;
-      startSelect.appendChild(opt);
+    const reactivateBtn = div.querySelector('[data-reactivate="1"]');
+    if (reactivateBtn) reactivateBtn.addEventListener('click', async () => {
+      await api.patchTask(t.id, { status: 'todo' });
+      await refreshAll();
+    });
+
+    return div;
+  };
+
+  for (const t of tasks) {
+    taskList.appendChild(renderTaskCard(t));
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = `${t.title} (E${t.energy_demand})`;
+    startSelect.appendChild(opt);
+  }
+
+  if (completedTaskList) {
+    for (const t of completedTasks) {
+      completedTaskList.appendChild(renderTaskCard(t, { completed: true }));
     }
   }
 }
+
 
 async function renderCheckins() {
   const res = await api.getCheckins(getTodayCT());
