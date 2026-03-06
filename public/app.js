@@ -393,7 +393,33 @@ async function refreshSchedulePreview() {
   `).join('') || 'No recommendations yet';
 }
 
+async function renderNowTaskOptions() {
+  const res = await api.getTasks();
+  const tasks = (res.data || []).filter(t => t.status !== 'done');
+  const startSelect = qs('startTaskSelect');
+  const currentVal = startSelect.value;
+  startSelect.innerHTML = '';
+
+  tasks.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = `${t.title} (E${t.energy_demand}, ${t.status})`;
+    startSelect.appendChild(opt);
+  });
+
+  if (tasks.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No unfinished tasks available';
+    startSelect.appendChild(opt);
+  } else if (tasks.find(t => String(t.id) === String(currentVal))) {
+    startSelect.value = currentVal;
+  }
+}
+
 async function renderSessions() {
+  await renderNowTaskOptions();
+
   const res = await api.getSessions(getTodayCT());
   const list = res.data || [];
   const container = qs('sessionList');
