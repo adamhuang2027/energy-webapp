@@ -1,5 +1,5 @@
 const api = {
-  getTasks: () => fetch('/api/v1/tasks').then(r => r.json()),
+  getTasks: (status = 'active') => fetch(`/api/v1/tasks?status=${encodeURIComponent(status)}`).then(r => r.json()),
   createTask: (body) => fetch('/api/v1/tasks', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   patchTask: (id, body) => fetch(`/api/v1/tasks/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   getCheckins: (date) => fetch(`/api/v1/energy-checkins?date=${date}`).then(r => r.json()),
@@ -84,7 +84,7 @@ function formatDateTimeCT(iso) {
 const focusLabel = { deep: 'Deep Work', shallow: 'Light Work', social: 'Communication' };
 const importanceLabel = { normal: 'Normal', mit: 'Top Priority' };
 const modeLabel = { flexible: 'Flexible', fixed: 'Fixed Time', windowed: 'Time Window' };
-const statusLabel = { todo: 'To Do', done: 'Done' };
+const statusLabel = { todo: 'To Do', doing: 'Doing', done: 'Done', archived: 'Archived' };
 
 function isoToLocalInputValue(iso) {
   if (!iso) return '';
@@ -158,7 +158,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 async function renderTasks() {
-  const res = await api.getTasks();
+  const res = await api.getTasks('active');
   const tasks = res.data || [];
   const taskList = qs('taskList');
   const startSelect = qs('startTaskSelect');
