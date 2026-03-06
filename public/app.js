@@ -529,6 +529,14 @@ qs('btnLoadCalendar').addEventListener('click', async () => {
     : `Google Calendar not active: ${d.reason}`;
 });
 
+qs('btnArchiveCompleted').addEventListener('click', async () => {
+  const olderThanDays = Number(qs('archiveDays').value || 7);
+  const res = await api.archiveCompleted(olderThanDays);
+  if (res.error) return alert(res.error);
+  await refreshAll();
+  alert(`Archived ${res.data?.archivedCount || 0} task(s)`);
+});
+
 qs('btnGenerate').addEventListener('click', refreshSchedulePreview);
 qs('btnApply').addEventListener('click', async () => {
   if (!latestRecommendations.length) return alert('Generate a schedule first');

@@ -119,6 +119,10 @@
           <h3>Task List</h3>
           <p class="muted">Default view shows only active tasks. Completed tasks are collapsed below.</p>
           <div id="taskList"></div>
+          <div class="row" style="margin-top:10px">
+            <input id="archiveDays" type="number" min="0" value="7" style="width:180px" />
+            <button id="btnArchiveCompleted" class="ghost">Archive completed older than N days</button>
+          </div>
           <details id="completedSection" style="margin-top:12px">
             <summary id="completedSummary">✅ Completed (0)</summary>
             <div id="completedTaskList" style="margin-top:8px"></div>
