@@ -397,6 +397,7 @@ async function renderNowTaskOptions() {
   const res = await api.getTasks();
   const tasks = (res.data || []).filter(t => t.status !== 'done');
   const startSelect = qs('startTaskSelect');
+  const debugEl = qs('nowTasksDebug');
   const currentVal = startSelect.value;
   startSelect.innerHTML = '';
 
@@ -412,8 +413,12 @@ async function renderNowTaskOptions() {
     opt.value = '';
     opt.textContent = 'No unfinished tasks available';
     startSelect.appendChild(opt);
-  } else if (tasks.find(t => String(t.id) === String(currentVal))) {
-    startSelect.value = currentVal;
+    if (debugEl) debugEl.textContent = 'Now-visible tasks: none';
+  } else {
+    if (debugEl) debugEl.textContent = `Now-visible tasks (${tasks.length}): ` + tasks.map(t => `#${t.id} ${t.title} [${t.status}]`).join(' | ');
+    if (tasks.find(t => String(t.id) === String(currentVal))) {
+      startSelect.value = currentVal;
+    }
   }
 }
 
@@ -633,6 +638,10 @@ qs('btnApply').addEventListener('click', async () => {
   await api.applySchedule({ date: getTodayCT(), recommendations: latestRecommendations.map(r => ({ taskId: r.taskId, start: r.start, end: r.end })) });
   await refreshAll();
   alert('Schedule applied');
+});
+
+qs('btnReloadNowTasks').addEventListener('click', async () => {
+  await renderNowTaskOptions();
 });
 
 qs('btnStart').addEventListener('click', async () => {
