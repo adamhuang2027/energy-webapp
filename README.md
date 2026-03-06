@@ -77,7 +77,15 @@ Fallback mode (legacy): you can still use API key mode by setting `GCAL_API_KEY`
 
 If none are set, the app still works and returns a friendly "not active" calendar status.
 
-## 6) Next Steps (v0.3)
+## 6) Task Archiving (new)
+
+- Main task list now defaults to **active tasks only** (`todo/doing`)
+- Completed tasks are shown in a collapsible section
+- Added Archive tab for historical tasks
+- Added bulk archive action: archive completed tasks older than N days
+- Background auto-archive runs periodically (default threshold 7 days; configurable)
+
+## 7) Next Steps (v0.3)
 
 1. OAuth-based Google account authorization (instead of API key + calendarId)
 2. Visual chart components for trends (line/bar)
