@@ -16,6 +16,7 @@
       <button class="tab active" data-tab="plan">Plan</button>
       <button class="tab" data-tab="now">Now</button>
       <button class="tab" data-tab="review">Review</button>
+      <button class="tab" data-tab="archive">Archive</button>
     </nav>
 
     <main>
@@ -175,6 +176,15 @@
         </div>
         <button id="btnGenerateAiWorkReport">Generate AI Work Report</button>
         <button id="btnRefreshReview">Refresh Review</button>
+      </section>
+
+      <section id="archive" class="panel">
+        <h2>Archive</h2>
+        <p class="muted">Completed tasks older than threshold can be archived to keep Plan page clean.</p>
+        <div class="card">
+          <h3>Archived Tasks</h3>
+          <div id="archiveTaskList"></div>
+        </div>
       </section>
     </main>
 

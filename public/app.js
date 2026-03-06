@@ -2,6 +2,8 @@ const api = {
   getTasks: (status = 'active') => fetch(`/api/v1/tasks?status=${encodeURIComponent(status)}`).then(r => r.json()),
   createTask: (body) => fetch('/api/v1/tasks', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   patchTask: (id, body) => fetch(`/api/v1/tasks/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
+  archiveCompleted: (olderThanDays = 7) => fetch('/api/v1/tasks/archive-completed', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ older_than_days: olderThanDays })}).then(r => r.json()),
+  restoreTask: (id) => fetch(`/api/v1/tasks/${id}/restore`, { method:'POST' }).then(r => r.json()),
   getCheckins: (date) => fetch(`/api/v1/energy-checkins?date=${date}`).then(r => r.json()),
   upsertCheckin: (body) => fetch('/api/v1/energy-checkins', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   generateSchedule: (body) => fetch('/api/v1/schedule/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
@@ -192,7 +194,8 @@ async function renderTasks() {
 
       <div class="row" style="margin-top:8px">
         ${options.completed
-          ? `<button class="secondary" data-id="${t.id}" data-reactivate="1">Mark Active</button>`
+          ? `<button class="secondary" data-id="${t.id}" data-reactivate="1">Mark Active</button>
+             <button class="ghost" data-id="${t.id}" data-archive="1">Archive</button>`
           : `<button class="success" data-id="${t.id}" data-done="1">Mark Done</button>`}
       </div>
 
@@ -257,6 +260,12 @@ async function renderTasks() {
       await refreshAll();
     });
 
+    const archiveBtn = div.querySelector('[data-archive="1"]');
+    if (archiveBtn) archiveBtn.addEventListener('click', async () => {
+      await api.patchTask(t.id, { status: 'archived' });
+      await refreshAll();
+    });
+
     return div;
   };
 
@@ -275,6 +284,40 @@ async function renderTasks() {
   }
 }
 
+
+
+async function renderArchive() {
+  const res = await api.getTasks('archived');
+  const list = res.data || [];
+  const container = qs('archiveTaskList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!list.length) {
+    container.innerHTML = '<div class="muted">No archived tasks yet.</div>';
+    return;
+  }
+
+  list.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'task-item';
+    div.innerHTML = `
+      <div class="task-head">
+        <b>${t.title}</b>
+        <span class="badge">Archived</span>
+      </div>
+      <div class="muted">Completed: ${formatDateTimeCT(t.completed_at)} · Archived: ${formatDateTimeCT(t.archived_at)}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="secondary" data-restore="${t.id}">Restore to Active</button>
+      </div>
+    `;
+    div.querySelector('[data-restore]').addEventListener('click', async () => {
+      await api.restoreTask(t.id);
+      await refreshAll();
+    });
+    container.appendChild(div);
+  });
+}
 
 async function renderCheckins() {
   const res = await api.getCheckins(getTodayCT());
@@ -544,6 +587,7 @@ qs('btnRefreshReview').addEventListener('click', async () => {
 async function refreshAll({ regenerate = autoRegenerate } = {}) {
   await renderGoogleStatus();
   await renderTasks();
+  await renderArchive();
   await renderCheckins();
   if (regenerate) await refreshSchedulePreview();
   await renderSessions();
