@@ -497,18 +497,33 @@ function computeDailyReview(date) {
 
 // --- Task APIs ---
 app.get('/api/v1/tasks', (req, res) => {
-  const status = req.query.status;
-  let query = 'SELECT * FROM tasks ORDER BY created_at DESC';
-  let rows;
-  if (status) {
-    const statuses = String(status).split(',').map(s => s.trim());
-    const placeholders = statuses.map(() => '?').join(',');
-    query = `SELECT * FROM tasks WHERE status IN (${placeholders}) ORDER BY created_at DESC`;
-    rows = db.prepare(query).all(...statuses);
-  } else {
-    rows = db.prepare(query).all();
-  }
-  res.json({ data: rows, error: null });
+  const statusQuery = String(req.query.status || 'active').trim();
+
+  const statusMap = {
+    active: ['todo', 'doing'],
+    completed: ['done'],
+    archived: ['archived'],
+    all: ['todo', 'doing', 'done', 'archived'],
+  };
+
+  const statuses = statusMap[statusQuery]
+    || statusQuery.split(',').map(s => s.trim()).filter(Boolean);
+
+  const placeholders = statuses.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT * FROM tasks WHERE status IN (${placeholders}) ORDER BY updated_at DESC, created_at DESC`)
+    .all(...statuses);
+
+  const counts = db.prepare(`
+    SELECT
+      SUM(CASE WHEN status IN ('todo', 'doing') THEN 1 ELSE 0 END) AS active,
+      SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS completed,
+      SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archived,
+      COUNT(*) AS all
+    FROM tasks
+  `).get();
+
+  res.json({ data: rows, meta: { counts }, error: null });
 });
 
 app.post('/api/v1/tasks', (req, res) => {
@@ -560,6 +575,12 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'Task not found' });
 
+  const nextStatus = req.body.status ?? existing.status;
+  const completedAt = nextStatus === 'done'
+    ? (existing.completed_at || new Date().toISOString())
+    : (nextStatus === 'archived' ? existing.completed_at : null);
+  const archivedAt = nextStatus === 'archived' ? (existing.archived_at || new Date().toISOString()) : null;
+
   const merged = {
     ...existing,
     title: req.body.title ?? existing.title,
@@ -567,7 +588,9 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
     energy_demand: req.body.energyDemand ?? existing.energy_demand,
     focus_type: req.body.focusType ?? existing.focus_type,
     importance: req.body.importance ?? existing.importance,
-    status: req.body.status ?? existing.status,
+    status: nextStatus,
+    completed_at: completedAt,
+    archived_at: archivedAt,
     schedule_mode: req.body.scheduleMode ?? existing.schedule_mode,
     fixed_start: req.body.fixedStart ?? existing.fixed_start,
     fixed_end: req.body.fixedEnd ?? existing.fixed_end,
@@ -580,7 +603,7 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
 
   db.prepare(`
     UPDATE tasks
-    SET title=?, estimated_minutes=?, energy_demand=?, focus_type=?, importance=?, status=?, schedule_mode=?, fixed_start=?, fixed_end=?, window_start_hour=?, window_end_hour=?, scheduled_start=?, scheduled_end=?, updated_at=?
+    SET title=?, estimated_minutes=?, energy_demand=?, focus_type=?, importance=?, status=?, completed_at=?, archived_at=?, schedule_mode=?, fixed_start=?, fixed_end=?, window_start_hour=?, window_end_hour=?, scheduled_start=?, scheduled_end=?, updated_at=?
     WHERE id=?
   `).run(
     merged.title,
@@ -589,6 +612,8 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
     merged.focus_type,
     merged.importance,
     merged.status,
+    merged.completed_at,
+    merged.archived_at,
     merged.schedule_mode,
     merged.fixed_start,
     merged.fixed_end,
@@ -599,6 +624,33 @@ app.patch('/api/v1/tasks/:id', (req, res) => {
     merged.updated_at,
     id
   );
+
+  res.json({ data: db.prepare('SELECT * FROM tasks WHERE id = ?').get(id), error: null });
+});
+
+
+app.post('/api/v1/tasks/archive-completed', (req, res) => {
+  const olderThanDays = Math.max(0, Number(req.body.older_than_days ?? req.body.olderThanDays ?? 7));
+  const thresholdIso = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+  const info = db.prepare(`
+    UPDATE tasks
+    SET status='archived', archived_at=?, updated_at=?
+    WHERE status='done' AND completed_at IS NOT NULL AND completed_at <= ?
+  `).run(new Date().toISOString(), new Date().toISOString(), thresholdIso);
+
+  res.json({ data: { archivedCount: info.changes, olderThanDays }, error: null });
+});
+
+app.post('/api/v1/tasks/:id/restore', (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+
+  db.prepare(`
+    UPDATE tasks
+    SET status='todo', archived_at=NULL, completed_at=NULL, updated_at=?
+    WHERE id=?
+  `).run(new Date().toISOString(), id);
 
   res.json({ data: db.prepare('SELECT * FROM tasks WHERE id = ?').get(id), error: null });
 });
@@ -714,7 +766,7 @@ app.post('/api/v1/sessions/:id/end', (req, res) => {
   );
 
   const newStatus = markDone ? 'done' : 'todo';
-  db.prepare('UPDATE tasks SET status=?, updated_at=? WHERE id=?').run(newStatus, new Date().toISOString(), session.task_id);
+  db.prepare('UPDATE tasks SET status=?, completed_at=?, archived_at=NULL, updated_at=? WHERE id=?').run(newStatus, markDone ? new Date().toISOString() : null, new Date().toISOString(), session.task_id);
 
   res.json({ data: db.prepare('SELECT * FROM sessions WHERE id = ?').get(id), error: null });
 });
@@ -986,6 +1038,27 @@ app.get('/api/v1/report/ai-work', (req, res) => {
 });
 
 app.get('/api/v1/health', (_req, res) => res.json({ data: { ok: true, timezone: GCAL_TIMEZONE }, error: null }));
+
+function runAutoArchiveCompleted(olderThanDays = Number(process.env.AUTO_ARCHIVE_DAYS || 7)) {
+  const thresholdIso = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+  const nowIso = new Date().toISOString();
+  const info = db.prepare(`
+    UPDATE tasks
+    SET status='archived', archived_at=?, updated_at=?
+    WHERE status='done' AND completed_at IS NOT NULL AND completed_at <= ?
+  `).run(nowIso, nowIso, thresholdIso);
+  return info.changes;
+}
+
+const autoArchiveIntervalMs = Number(process.env.AUTO_ARCHIVE_INTERVAL_MS || 60 * 60 * 1000);
+setInterval(() => {
+  try {
+    const changed = runAutoArchiveCompleted();
+    if (changed > 0) console.log(`[auto-archive] archived ${changed} completed tasks`);
+  } catch (e) {
+    console.error('[auto-archive] failed:', e?.message || e);
+  }
+}, autoArchiveIntervalMs);
 
 app.listen(PORT, () => {
   console.log(`Energy app running on http://localhost:${PORT}`);
