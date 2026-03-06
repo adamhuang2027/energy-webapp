@@ -37,7 +37,9 @@ function initDb() {
       context_device TEXT,
       need_block INTEGER NOT NULL DEFAULT 0,
       importance TEXT NOT NULL DEFAULT 'normal' CHECK (importance IN ('mit','normal')),
-      status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','doing','done')),
+      status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','doing','done','archived')),
+      completed_at TEXT,
+      archived_at TEXT,
       schedule_mode TEXT NOT NULL DEFAULT 'flexible' CHECK (schedule_mode IN ('fixed','flexible','windowed')),
       fixed_start TEXT,
       fixed_end TEXT,
@@ -108,6 +110,20 @@ function initDb() {
   ensureColumn('fixed_end', 'fixed_end TEXT');
   ensureColumn('window_start_hour', 'window_start_hour INTEGER');
   ensureColumn('window_end_hour', 'window_end_hour INTEGER');
+  ensureColumn('completed_at', 'completed_at TEXT');
+  ensureColumn('archived_at', 'archived_at TEXT');
+
+  const normalizeStatuses = db.prepare(`
+    UPDATE tasks
+    SET status='done'
+    WHERE status NOT IN ('todo','doing','done','archived')
+  `);
+  normalizeStatuses.run();
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_status_updated_at ON tasks(status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status_completed_at ON tasks(status, completed_at);
+  `);
 
   const ensureSessionColumn = (name, ddl) => {
     const cols = db.prepare("PRAGMA table_info(sessions)").all();
