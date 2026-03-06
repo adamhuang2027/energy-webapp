@@ -456,9 +456,73 @@ async function renderAiWorkReport() {
   el.textContent = res.data?.report || 'No report available yet.';
 }
 
+function renderWeeklyChart(rows) {
+  const chartEl = qs('weeklyChart');
+  if (!chartEl) return;
+  if (!rows.length) {
+    chartEl.innerHTML = '';
+    return;
+  }
+
+  const width = 760;
+  const height = 220;
+  const pad = { top: 20, right: 16, bottom: 42, left: 30 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const maxSessions = Math.max(1, ...rows.map(r => r.sessions || 0));
+
+  const x = (i) => pad.left + (rows.length === 1 ? plotW / 2 : (plotW * i) / (rows.length - 1));
+  const yRate = (v) => pad.top + (1 - Math.max(0, Math.min(1, v))) * plotH;
+  const ySessions = (v) => pad.top + (1 - v / maxSessions) * plotH;
+
+  const mismatchPoints = rows.map((r, i) => `${x(i)},${yRate(r.mismatchRate || 0)}`).join(' ');
+  const completionPoints = rows.map((r, i) => `${x(i)},${yRate(r.highEnergyCompletionRate || 0)}`).join(' ');
+
+  const barWidth = Math.max(10, Math.min(26, plotW / (rows.length * 2.2)));
+  const bars = rows.map((r, i) => {
+    const bx = x(i) - barWidth / 2;
+    const by = ySessions(r.sessions || 0);
+    const bh = pad.top + plotH - by;
+    return `<rect x="${bx}" y="${by}" width="${barWidth}" height="${bh}" fill="rgba(79,140,255,0.28)" stroke="rgba(110,166,255,0.7)" rx="3" />`;
+  }).join('');
+
+  const dotsMismatch = rows.map((r, i) => `<circle cx="${x(i)}" cy="${yRate(r.mismatchRate || 0)}" r="3" fill="#fb7185" />`).join('');
+  const dotsCompletion = rows.map((r, i) => `<circle cx="${x(i)}" cy="${yRate(r.highEnergyCompletionRate || 0)}" r="3" fill="#34d399" />`).join('');
+
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(v => {
+    const yy = yRate(v);
+    return `<line x1="${pad.left}" y1="${yy}" x2="${pad.left + plotW}" y2="${yy}" stroke="rgba(148,163,184,0.2)" stroke-width="1" />`;
+  }).join('');
+
+  const labels = rows.map(r => {
+    const d = String(r.date || '').slice(5);
+    return `<span>${d}</span>`;
+  }).join('');
+
+  chartEl.innerHTML = `
+    <div class="weekly-chart-wrap">
+      <div class="weekly-legend">
+        <span><i class="legend-dot" style="background:#fb7185"></i>Mismatch Rate</span>
+        <span><i class="legend-dot" style="background:#34d399"></i>High-Energy Completion</span>
+        <span><i class="legend-dot" style="background:rgba(79,140,255,0.6)"></i>Sessions (bars)</span>
+      </div>
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+        ${grid}
+        ${bars}
+        <polyline points="${mismatchPoints}" fill="none" stroke="#fb7185" stroke-width="2" />
+        <polyline points="${completionPoints}" fill="none" stroke="#34d399" stroke-width="2" />
+        ${dotsMismatch}
+        ${dotsCompletion}
+      </svg>
+      <div class="weekly-x-labels">${labels}</div>
+    </div>
+  `;
+}
+
 async function renderWeeklyTrends() {
   const res = await api.getWeeklyInsights(getTodayCT());
   const rows = res.data || [];
+  renderWeeklyChart(rows);
   const el = qs('weeklyTrends');
   el.innerHTML = rows.map(r => {
     const mismatchPct = Math.round((r.mismatchRate || 0) * 100);
