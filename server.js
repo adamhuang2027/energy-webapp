@@ -138,7 +138,9 @@ initDb();
 
 app.use(cors());
 app.use(express.json());
-app.use(morgan('dev'));
+app.use(morgan('dev', {
+  skip: (req) => req.path === '/api/v1/health' || req.path.startsWith('/app') || req.path.startsWith('/styles')
+}));
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
