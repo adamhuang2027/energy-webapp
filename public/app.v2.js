@@ -4,6 +4,7 @@ const api = {
   patchTask: (id, body) => fetch(`/api/v1/tasks/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   archiveCompleted: (olderThanDays = 7) => fetch('/api/v1/tasks/archive-completed', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ older_than_days: olderThanDays })}).then(r => r.json()),
   restoreTask: (id) => fetch(`/api/v1/tasks/${id}/restore`, { method:'POST' }).then(r => r.json()),
+  deleteTask: (id) => fetch(`/api/v1/tasks/${id}`, { method:'DELETE' }).then(r => r.json()),
   getCheckins: (date) => fetch(`/api/v1/energy-checkins?date=${date}`).then(r => r.json()),
   upsertCheckin: (body) => fetch('/api/v1/energy-checkins', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
   generateSchedule: (body) => fetch('/api/v1/schedule/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r => r.json()),
@@ -195,8 +196,10 @@ async function renderTasks() {
       <div class="row" style="margin-top:8px">
         ${options.completed
           ? `<button class="secondary" data-id="${t.id}" data-reactivate="1">Mark Active</button>
-             <button class="ghost" data-id="${t.id}" data-archive="1">Archive</button>`
-          : `<button class="success" data-id="${t.id}" data-done="1">Mark Done</button>`}
+             <button class="ghost" data-id="${t.id}" data-archive="1">Archive</button>
+             <button class="danger" data-id="${t.id}" data-delete="1">Delete</button>`
+          : `<button class="success" data-id="${t.id}" data-done="1">Mark Done</button>
+             <button class="danger" data-id="${t.id}" data-delete="1">Delete</button>`}
       </div>
 
       <details class="task-advanced">
@@ -266,6 +269,15 @@ async function renderTasks() {
       await refreshAll();
     });
 
+    const deleteBtn = div.querySelector('[data-delete="1"]');
+    if (deleteBtn) deleteBtn.addEventListener('click', async () => {
+      const ok = confirm(`Delete task "${t.title}" permanently? This cannot be undone.`);
+      if (!ok) return;
+      const resp = await api.deleteTask(t.id);
+      if (resp.error) return alert(resp.error);
+      await refreshAll();
+    });
+
     return div;
   };
 
@@ -309,10 +321,18 @@ async function renderArchive() {
       <div class="muted">Completed: ${formatDateTimeCT(t.completed_at)} · Archived: ${formatDateTimeCT(t.archived_at)}</div>
       <div class="row" style="margin-top:8px">
         <button class="secondary" data-restore="${t.id}">Restore to Active</button>
+        <button class="danger" data-delete="${t.id}">Delete Permanently</button>
       </div>
     `;
     div.querySelector('[data-restore]').addEventListener('click', async () => {
       await api.restoreTask(t.id);
+      await refreshAll();
+    });
+    div.querySelector('[data-delete]').addEventListener('click', async () => {
+      const ok = confirm(`Delete archived task "${t.title}" permanently?`);
+      if (!ok) return;
+      const resp = await api.deleteTask(t.id);
+      if (resp.error) return alert(resp.error);
       await refreshAll();
     });
     container.appendChild(div);
