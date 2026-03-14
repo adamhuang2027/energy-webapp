@@ -666,6 +666,18 @@ app.post('/api/v1/tasks/:id/restore', (req, res) => {
   res.json({ data: db.prepare('SELECT * FROM tasks WHERE id = ?').get(id), error: null });
 });
 
+app.delete('/api/v1/tasks/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+
+  // cleanup related sessions first to avoid orphan rows in analytics
+  db.prepare('DELETE FROM sessions WHERE task_id = ?').run(id);
+  db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+
+  res.json({ data: { id, deleted: true }, error: null });
+});
+
 // --- Checkins ---
 app.get('/api/v1/energy-checkins', (req, res) => {
   const date = req.query.date || todayStr();
