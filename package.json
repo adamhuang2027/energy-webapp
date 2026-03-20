@@ -9,7 +9,7 @@
     "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
+    "sql.js": "^1.13.0",
     "cross-env": "^7.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",

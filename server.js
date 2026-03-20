@@ -4,8 +4,8 @@ import cors from 'cors';
 import morgan from 'morgan';
 import session from 'express-session';
 import { google } from 'googleapis';
-import Database from 'better-sqlite3';
 import path from 'path';
+import { openDatabase } from './sqlite.js';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,9 +21,7 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${APP_BASE_URL}/
 const GCAL_API_KEY = process.env.GCAL_API_KEY || '';
 const GCAL_CALENDAR_ID = process.env.GCAL_CALENDAR_ID || 'primary';
 const GCAL_TIMEZONE = process.env.GCAL_TIMEZONE || 'America/Chicago';
-const db = new Database(path.join(__dirname, 'energy.db'));
-
-db.pragma('journal_mode = WAL');
+const db = await openDatabase(path.join(__dirname, 'energy.db'));
 
 function initDb() {
   db.exec(`

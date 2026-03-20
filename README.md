@@ -20,29 +20,15 @@ npm start
 
 Open: `http://localhost:8787`
 
-### Windows setup notes (better-sqlite3)
+### Windows setup notes (node-gyp blocked network)
 
-If you cloned this repo on Windows and see `better-sqlite3` errors:
-
-1. Ensure you are using a supported Node LTS (recommended: Node 20).
-2. Clean install dependencies for your local OS/CPU:
+This project now uses `sql.js` (WASM), so it does **not** require `node-gyp` native build.
 
 ```powershell
 cd energy-webapp
 rmdir /s /q node_modules
 del package-lock.json
 npm install
-```
-
-3. If `better-sqlite3` still fails to load/build, run:
-
-```powershell
-npm rebuild better-sqlite3 --build-from-source
-```
-
-4. Start app with:
-
-```powershell
 npm start
 ```
 

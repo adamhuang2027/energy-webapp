@@ -1,6 +1,11 @@
-import Database from 'better-sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { openDatabase } from '../sqlite.js';
 
-const db = new Database('energy.db');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const db = await openDatabase(path.join(__dirname, '..', 'energy.db'));
 
 function ensureColumn(name, ddl) {
   const cols = db.prepare('PRAGMA table_info(tasks)').all();
