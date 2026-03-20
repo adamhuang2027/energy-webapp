@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "NODE_OPTIONS='--max-old-space-size=384' node server.js",
-    "dev": "NODE_OPTIONS='--max-old-space-size=384' node --watch server.js",
+    "start": "cross-env NODE_OPTIONS=--max-old-space-size=384 node server.js",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=384 node --watch server.js",
     "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "cross-env": "^7.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.21.2",
